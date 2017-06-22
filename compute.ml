@@ -5,16 +5,22 @@ let heuristic_choose_interventions () : interventions = []
 
 let compute_extended_story model trace rule_name =
   (* Compute factual causal core *)
-  (* Choose intervention (heuristic) *)
+  (* Convert a copy of this causal core to an extended story *)
+  
+  (* Choose intervention (heuristic) depending on the trace and the current extended story :
+  For example :
+	- Block permanently in trace T every event that involve species in the factual core and that is not in S.
+	- Block permanently an event that is suspected to have an impact later.*)
   let interventions = heuristic_choose_interventions () in
-  (* Compute and sample counterfactuals traces *)
-  (* If the htreshol is excedeed : *)
-  (* Find the most blocked event in the causal core *)
-  (* Find the last event that inhibits it in each counterfactual trace *)
-  (* Select one of them (heuristic?) and compute its causal core *)
-  (* Merge the two causal cores *)
-  (* For each events of the contrefactual story that is caused directly by an event present in the factual story (including init) :
-  Find the last event in the factual trace (among those that we blocked) that prevent it
-  (it should have happenned between the factual and contrefactual events), compute its story and merge.
-  Put an inhibition arrow between these two events. *)
+  (* Compute and sample counterfactuals traces (resimulation stops when one event of the causal core is blocked) *)
+  (* If the threshold is excedeed : *)
+  (* Take one of the counterfactual traces (heuristic? random?) *)
+  (* Find the last events that has inhibited the event of the causal core that has been blocked :
+  it is the last events that changed the value of a tested logical site from a good value to a wrong value. *)
+  (* Select the first of these events and compute its causal core *)
+  (* Merge this contrefactual core with the extended story, add the corresponding inhibition arrow, and add missing precendence relations between them *)
+  (* For each events of the contrefactual core that is caused directly by an event present in the factual core (including init) :
+  Find the last events in the factual trace among those that we blocked that prevent it (same method as above)
+  (it should have happenned between the factual and contrefactual events), compute their causal cores,
+  merge them and add corresponding inhibition arrows. *)
   ()
