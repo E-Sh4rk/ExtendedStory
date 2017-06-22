@@ -1,21 +1,42 @@
-open Interface
+open Ext_tools
+open Compute
 
-let heuristic_choose_interventions () : interventions = []
+let file = ref ""
+let output_prefix = ref ""
+let rule_of_interest = ref ""
+
+let options = [
+  ("-o", Arg.Set_string output_prefix,
+   "prefix for the output file");
+  ("-r", Arg.Set_string rule_of_interest,
+   "rule of interest")
+]
+let description = ""
 
 let main () =
-  (* Compute factual causal core *)
-  (* Choose intervention (heuristic) *)
-  let interventions = heuristic_choose_interventions () in
-  (* Compute and sample counterfactuals traces *)
-  (* If the htreshol is excedeed : *)
-  (* Find the most blocked event in the causal core *)
-  (* Find the last event that inhibits it in each counterfactual trace *)
-  (* Select one of them (heuristic?) and compute its causal core *)
-  (* Merge the two causal cores *)
-  (* For each events of the contrefactual story that is caused directly by an event present in the factual story (including init) :
-  Find the last event in the factual trace (among those that we blocked) that prevent it
-  (it should have happenned between the factual and contrefactual events), compute its story and merge.
-  Put an inhibition arrow between these two events. *)
-  ()
+  let () =
+    Arg.parse
+      options
+      (fun f -> if !file = "" then file := f else
+          let () = Format.eprintf "Deals only with 1 file" in exit 2)
+      description in
+  if !file = "" then
+    prerr_string "Please specify a trace file."
+  else if !rule_of_interest = "" then
+    prerr_string "Please specify a rule."
+  else
+  (
+    if !output_prefix = "" then output_prefix := "story" ;
+
+    log "Loading the trace file." ;
+    let ch = open_in !file in
+    let json = Yojson.Basic.from_channel ch in
+    let () = close_in ch in
+    let env = Model.of_yojson (Yojson.Basic.Util.member "env" json) in
+    let steps = Trace.of_yojson (Yojson.Basic.Util.member "trace" json) in
+    log "Trace file loaded !" ;
+
+    compute_extended_story env steps !rule_of_interest
+  )
 
 let () = main ()
