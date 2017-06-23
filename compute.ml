@@ -7,14 +7,14 @@ let compute_extended_story model trace rule_name =
   (* Compute factual causal core *)
   (* Initialize a list of counterfactual extended causal cores *)
   
-  (* Choose intervention (heuristic) depending on the trace and the current extended story :
+  (* Choose intervention (heuristic) depending on the trace and the current factual causal core :
   For example :
 	- Block permanently in trace T every event that involve species in the factual core and that is not in S.
 	- Block permanently an event that is suspected to have an impact later.*)
   let interventions = heuristic_choose_interventions () in
   (* Compute and sample counterfactuals traces (resimulation stops when one event of the causal core is blocked) *)
   (* If the threshold is excedeed : *)
-  (* Take one of the counterfactual traces (heuristic? random?) *)
+  (* Take one of the counterfactual traces (heuristic? random? smallest core?) *)
   (* Find the last events that has inhibited the event of the causal core that has been blocked :
   it is the last events that changed the value of a tested logical site from a good value to a wrong value. *)
   (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)
