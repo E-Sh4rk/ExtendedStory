@@ -25,5 +25,6 @@ let compute_extended_story model trace rule_name =
   (* At the end, merge the factual causal core and all the counterfactual causal cores. Depending on the details wanted by the user, we can :
      - Merge everything by merging together nodes that represent the same event
      - Keep only counterfactual-only events of counterfactual cores
+	Don't forget to put inhibition arrows that had been found.
   *)
   ()
