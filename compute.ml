@@ -9,7 +9,7 @@ let compute_extended_story model trace rule_name =
   
   (* Choose intervention (heuristic) depending on the trace and the current factual causal core :
   For example :
-	- Block permanently in trace T every event that involve species in the factual core and that is not in S.
+	- Block permanently in trace T every event that involve species in the factual core and that is not in the factual causal core.
 	- Block permanently an event that is suspected to have an impact later.*)
   let interventions = heuristic_choose_interventions () in
   (* Compute and sample counterfactuals traces (resimulation stops when one event of the causal core is blocked) *)
