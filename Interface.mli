@@ -1,6 +1,9 @@
 open Trace.Simulation_info
 open Trace
 
+type step = Trace.step
+type counterfactual_step = Resimulation.step
+
 type blocked_event =
   | One_time of int (* Simulation_info.story_event *)
   | Every_instance of int * Agent.t list option * float option * float option (* rule_id * agents_involved * from_time * until_time *)
@@ -16,11 +19,6 @@ type stop_condition =
   | Any_event_not_happened
 
 type stop_conditions = stop_condition list
-
-type counterfactual_step =
-  | Factual_event_happened of step
-  | Factual_event_blocked of step
-  | Counterfactual_event_happened of step
 
 type block_predicate = step -> bool
 

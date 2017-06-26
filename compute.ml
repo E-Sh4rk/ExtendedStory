@@ -13,6 +13,8 @@ type configuration =
 }
 
 let compute_extended_story model trace rule_name config =
+  (* Determining event of interest *)
+  let eoi_id = 0 in
   (* Compute factual causal core *)
   (* Initialize a list of counterfactual extended causal cores *)
   
@@ -22,13 +24,13 @@ let compute_extended_story model trace rule_name config =
 	- Block permanently an event that is suspected to have an impact later.*)
   let interventions = heuristic_choose_interventions () in
   let block_pred = interventions_to_predicate interventions
-  and stop_pred = stop_conditions_to_predicate [Any_event_not_happened] in
-  (* Compute and sample counterfactuals traces (resimulation stops when one event of the factual causal core is blocked) *)
+  and stop_pred = stop_conditions_to_predicate [Event_has_happened eoi_id;Event_has_not_happened eoi_id] in
+  (* Compute and sample counterfactuals traces (resimulation stops when eid has happened/has been blocked) *)
   let samples = Array.make config.nb_samples trace in
   let samples = Array.map (fun t -> resimulate model block_pred stop_pred) samples in
   (* If the threshold is excedeed : *)
-  (* Take one of the counterfactual traces (heuristic? random? smallest core? more blocked event?) *)
-  (* Find the last events that has inhibited the event of the causal core that has been blocked :
+  (* Take one of the counterfactual traces (heuristic? random among the traces that block the eoi? smallest core? more blocked event?) *)
+  (* Find the last events that has inhibited the first event of the causal core that has been blocked :
   it is the last events that changed the value of a tested logical site from a good value to a wrong value. *)
   (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)
   (* For each events of this counterfactual causal core <that has no counterfactual-only cause|that as at least one factual cause>,

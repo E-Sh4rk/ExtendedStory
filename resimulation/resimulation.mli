@@ -24,6 +24,8 @@ val debug_print_resimulation_step : Model.t -> Format.formatter -> step -> unit
 
 exception End_of_resimulation
 
+val init : Model.t -> Random.State.t -> state
+
 val do_step : 
   (Trace.step * float * bool) option -> state -> 
   bool * step option * state

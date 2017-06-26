@@ -1,5 +1,9 @@
 open Trace.Simulation_info
+open Resimulation
 open Trace
+
+type counterfactual_step = Resimulation.step
+type step = Trace.step
 
 type blocked_event =
   | One_time of int (* Simulation_info.story_event *)
@@ -16,12 +20,6 @@ type stop_condition =
   | Any_event_not_happened
 
 type stop_conditions = stop_condition list
-
-
-type counterfactual_step =
-  | Factual_event_happened of step
-  | Factual_event_blocked of step
-  | Counterfactual_event_happened of step
 
 type block_predicate = step -> bool
 
@@ -80,25 +78,25 @@ let rec interventions_to_predicate interv step =
 let rec stop_conditions_to_predicate scs cstep =
   match scs, cstep with
   | [], _ -> Continue
-  | (Time_limit t)::lst, Factual_event_happened step
-  | (Time_limit t)::lst, Factual_event_blocked step
-  | (Time_limit t)::lst, Counterfactual_event_happened step ->
+  | (Time_limit t)::lst, Factual_happened step
+  | (Time_limit t)::lst, Factual_did_not_happen (_, step)
+  | (Time_limit t)::lst, Counterfactual_happened step ->
   (
     match step_info step with
     | Some i when i.story_time > t -> Stop_before
     | _ -> stop_conditions_to_predicate lst cstep
   )
-  | (Any_event_not_happened)::lst, Factual_event_blocked _ -> Stop_after
-  | (Event_has_not_happened ev)::lst, Factual_event_blocked step
-  | (Event_has_happened ev)::lst, Factual_event_happened step ->
+  | (Any_event_not_happened)::lst, Factual_did_not_happen _ -> Stop_after
+  | (Event_has_not_happened ev)::lst, Factual_did_not_happen (_, step)
+  | (Event_has_happened ev)::lst, Factual_happened step ->
   (
     match step_info step with
     | Some i when i.story_event = ev -> Stop_after
     | _ -> stop_conditions_to_predicate lst cstep
   )
-  | (Rule_has_not_happened id_rule)::lst, Factual_event_blocked step
-  | (Rule_has_happened id_rule)::lst, Factual_event_happened step
-  | (Rule_has_happened id_rule)::lst, Counterfactual_event_happened step ->
+  | (Rule_has_not_happened id_rule)::lst, Factual_did_not_happen (_, step)
+  | (Rule_has_happened id_rule)::lst, Factual_happened step
+  | (Rule_has_happened id_rule)::lst, Counterfactual_happened step ->
   (
     match step with
     | Rule(id,_,_) when id = id_rule -> Stop_after
@@ -106,4 +104,23 @@ let rec stop_conditions_to_predicate scs cstep =
   )
   | hd::lst, _ -> stop_conditions_to_predicate lst cstep
 
-let resimulate model blocked_pred stop_pred trace = [] (* TODO *)
+let resimulate model block_pred stop_pred trace =
+  let next_event lst = match lst with
+  | [] -> None
+  | s::lst -> begin match step_info s with
+    | None -> failwith "Invalid trace !"
+    | Some info -> Some (s, info.story_time, block_pred s)
+  end in
+  let rec resimulate_step next_events state acc =
+    let (consummed, cstep_opt, state) = Resimulation.do_step (next_event next_events) state in
+    let next_events = if consummed then List.tl next_events else next_events in
+    try
+    (
+      match cstep_opt with
+      | None -> resimulate_step next_events state acc
+      | Some s when stop_pred s = Continue -> resimulate_step next_events state (s::acc)
+      | Some s when stop_pred s = Stop_after -> s::acc
+      | Some s -> acc
+    )
+    with Resimulation.End_of_resimulation -> acc
+  in List.rev (resimulate_step trace (Resimulation.init model (Random.get_state ())) [])
