@@ -35,7 +35,7 @@ let compute_extended_story model trace rule_name config =
   (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)
   (* For each events of this counterfactual causal core <that has no counterfactual-only cause|that as at least one factual cause>,
   find the last events in the factual trace among those that we blocked that prevent it (same method as above). Indicate in the counterfactual core the origin of these inhibition arrows. *)
-  (* Update the factual core : compute a new factual causal core with all the previous added events + these inhibitive events <+ other factual events of the counterfactual core if we want to have more links with the factual core at the end>. *)
+  (* Update the factual core : compute a new factual causal core with all the previous added events + events with an inhibitive arrow <+ other factual events of the counterfactual core if we want to have more links with the factual core at the end>. *)
   
   (* At the end, merge the factual causal core and all the counterfactual causal cores. Depending on the details wanted by the user, we can :
      - Merge everything by merging together nodes that represent the same event
