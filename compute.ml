@@ -3,7 +3,16 @@ open Ext_tools
 
 let heuristic_choose_interventions () : interventions = []
 
-let compute_extended_story model trace rule_name =
+type configuration =
+{
+  nb_samples   : int;
+  threshold    : float;
+  more_inhibition_arrows : bool;
+  more_relations_with_factual : bool;
+  show_entire_counterfactual_stories : bool;
+}
+
+let compute_extended_story model trace rule_name config =
   (* Compute factual causal core *)
   (* Initialize a list of counterfactual extended causal cores *)
   
@@ -12,9 +21,13 @@ let compute_extended_story model trace rule_name =
 	- Block permanently in trace T every event that involve species in the factual core and that is not in the factual causal core.
 	- Block permanently an event that is suspected to have an impact later.*)
   let interventions = heuristic_choose_interventions () in
+  let block_pred = interventions_to_predicate interventions
+  and stop_pred = stop_conditions_to_predicate [Any_event_not_happened] in
   (* Compute and sample counterfactuals traces (resimulation stops when one event of the factual causal core is blocked) *)
+  let samples = Array.make config.nb_samples trace in
+  let samples = Array.map (fun t -> resimulate model block_pred stop_pred) samples in
   (* If the threshold is excedeed : *)
-  (* Take one of the counterfactual traces (heuristic? random? smallest core?) *)
+  (* Take one of the counterfactual traces (heuristic? random? smallest core? more blocked event?) *)
   (* Find the last events that has inhibited the event of the causal core that has been blocked :
   it is the last events that changed the value of a tested logical site from a good value to a wrong value. *)
   (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)

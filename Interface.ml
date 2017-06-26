@@ -23,7 +23,7 @@ type counterfactual_step =
   | Factual_event_blocked of step
   | Counterfactual_event_happened of step
 
-type blocked_predicate = step -> bool
+type block_predicate = step -> bool
 
 type stop =
   | Continue | Stop_after | Stop_before
@@ -106,4 +106,4 @@ let rec stop_conditions_to_predicate scs cstep =
   )
   | hd::lst, _ -> stop_conditions_to_predicate lst cstep
 
-let resimulate model trace blocked_pred stop_pred = []
+let resimulate model blocked_pred stop_pred trace = [] (* TODO *)

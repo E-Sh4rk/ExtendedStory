@@ -36,7 +36,15 @@ let main () =
     let steps = Trace.of_yojson (Yojson.Basic.Util.member "trace" json) in
     log "Trace file loaded !" ;
 
-    compute_extended_story env steps !rule_of_interest
+    let config =
+    {
+      nb_samples   = 5;
+      threshold    = 0.5;
+      more_inhibition_arrows = false;
+      more_relations_with_factual = false;
+      show_entire_counterfactual_stories = false
+    } in
+    compute_extended_story env steps !rule_of_interest config
   )
 
 let () = main ()

@@ -22,7 +22,7 @@ type counterfactual_step =
   | Factual_event_blocked of step
   | Counterfactual_event_happened of step
 
-type blocked_predicate = step -> bool
+type block_predicate = step -> bool
 
 type stop =
   | Continue | Stop_after | Stop_before
@@ -32,4 +32,4 @@ val interventions_to_predicate : interventions -> step -> bool
 
 val stop_conditions_to_predicate : stop_conditions -> counterfactual_step -> stop
 
-val resimulate : Model.t -> Trace.t -> blocked_predicate -> stop_predicate -> counterfactual_step list
+val resimulate : Model.t -> block_predicate -> stop_predicate -> Trace.t -> counterfactual_step list
