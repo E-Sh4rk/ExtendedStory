@@ -1,7 +1,6 @@
 open Interface
+open Trace
 open Ext_tools
-
-let heuristic_choose_interventions () : interventions = []
 
 type configuration =
 {
@@ -12,12 +11,28 @@ type configuration =
   show_entire_counterfactual_stories : bool;
 }
 
+let heuristic_choose_interventions () : interventions = []
+
+exception Not_found
+
+let rec get_first_rule_event model rule_name trace = match trace with
+  | [] -> raise Not_found
+  | (Rule (rule_id,inst,infos))::trace when rule_ast_name model rule_id = rule_name -> infos.story_event
+  | s::trace -> get_first_rule_event model rule_name trace
+
+let trace_succeed eoi_id trace = match Array.length trace with
+  | 0 -> false
+  | n -> begin match trace.(n-1) with
+    | Resimulation.Factual_happened (Rule (rid,inst,infos)) when infos.story_event = eoi_id -> true
+    | _ -> false
+  end
+
 let compute_extended_story model trace rule_name config =
   (* Determining event of interest *)
-  let eoi_id = 0 in
+  let eoi_id = get_first_rule_event model rule_name trace in
   (* Compute factual causal core *)
-  (* Initialize a list of counterfactual extended causal cores *)
-  
+  (* Initialize a list of counterfactual extended causal cores and a list of factual events to maintain *)
+  let events_in_story = [eoi_id] in
   (* Choose intervention (heuristic) depending on the trace and the current factual causal core :
   For example :
 	- Block permanently in trace T every event that involve species in the factual core and that is not in the factual causal core.
@@ -27,7 +42,8 @@ let compute_extended_story model trace rule_name config =
   and stop_pred = stop_conditions_to_predicate [Event_has_happened eoi_id;Event_has_not_happened eoi_id] in
   (* Compute and sample counterfactuals traces (resimulation stops when eid has happened/has been blocked) *)
   let samples = Array.make config.nb_samples trace in
-  let samples = Array.map (fun t -> resimulate model block_pred stop_pred) samples in
+  let samples = Array.map (fun t -> Array.of_list (resimulate model block_pred stop_pred t)) samples in
+  let failed_samples = List.filter (fun t -> not (trace_succeed eoi_id t)) (Array.to_list samples) in
   (* If the threshold is excedeed : *)
   (* Take one of the counterfactual traces (heuristic? random among the traces that block the eoi? smallest core? more blocked event?) *)
   (* Find the last events that has inhibited the first event of the causal core that has been blocked :
