@@ -6,15 +6,15 @@ type counterfactual_step = Resimulation.step
 type step = Trace.step
 
 type blocked_event =
-  | One_time of int (* Simulation_info.story_event *)
+  | One_time of int (* Simulation_info.story_id *)
   | Every_instance of int * Agent.t list option * float option * float option (* rule_id * agents_involved * from_time * until_time *)
 
 type interventions = blocked_event list
 
 type stop_condition =
   | Time_limit of float
-  | Event_has_happened of int (* Simulation_info.story_event *)
-  | Event_has_not_happened of int (* Simulation_info.story_event *)
+  | Event_has_happened of int (* Simulation_info.story_id *)
+  | Event_has_not_happened of int (* Simulation_info.story_id *)
   | Rule_has_happened of int (* rule_id *)
   | Rule_has_not_happened of int (* rule_id *)
   | Any_event_not_happened
@@ -55,7 +55,7 @@ let rec interventions_to_predicate interv step =
   | (One_time ev)::lst ->
   (
     match step_info step with
-    | Some info -> if info.story_event = ev then true else interventions_to_predicate lst step
+    | Some info -> if info.story_id = ev then true else interventions_to_predicate lst step
     | None -> interventions_to_predicate lst step
   )
   | (Every_instance (rule_id, involved, from_time, to_time))::lst ->
@@ -91,7 +91,7 @@ let rec stop_conditions_to_predicate scs cstep =
   | (Event_has_happened ev)::lst, Factual_happened step ->
   (
     match step_info step with
-    | Some i when i.story_event = ev -> Stop_after
+    | Some i when i.story_id = ev -> Stop_after
     | _ -> stop_conditions_to_predicate lst cstep
   )
   | (Rule_has_not_happened id_rule)::lst, Factual_did_not_happen (_, step)

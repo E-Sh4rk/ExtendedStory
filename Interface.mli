@@ -5,15 +5,15 @@ type step = Trace.step
 type counterfactual_step = Resimulation.step
 
 type blocked_event =
-  | One_time of int (* Simulation_info.story_event *)
+  | One_time of int (* Simulation_info.story_id *)
   | Every_instance of int * Agent.t list option * float option * float option (* rule_id * agents_involved * from_time * until_time *)
 
 type interventions = blocked_event list
 
 type stop_condition =
   | Time_limit of float
-  | Event_has_happened of int (* Simulation_info.story_event *)
-  | Event_has_not_happened of int (* Simulation_info.story_event *)
+  | Event_has_happened of int (* Simulation_info.story_id *)
+  | Event_has_not_happened of int (* Simulation_info.story_id *)
   | Rule_has_happened of int (* rule_id *)
   | Rule_has_not_happened of int (* rule_id *)
   | Any_event_not_happened
