@@ -1,3 +1,4 @@
 "resimulation": include
+"kaflow": include
 
 true: package(KappaLib), bin_annot, safe_string, debug
