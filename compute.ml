@@ -68,7 +68,7 @@ let rec first_inhibited_event factual_subtrace ctrace = match ctrace with
   then step else first_inhibited_event factual_subtrace ctrace
   | _::ctrace -> first_inhibited_event factual_subtrace ctrace
 
-let last_inhibitive_event_before index grid constr = ()
+let last_inhibitive_event_before index grid var_infos constr = ()
 
 type counterfactual_part = (step list) * ((int*int) list)
 (*
@@ -105,6 +105,7 @@ IDs of the events are :
       let inhibited_event = first_inhibited_event factual ctrace in
       let ctrace_array = Array.of_list reg_ctrace in
       let (ctrace_grid, _) = Grid.build_grid model reg_ctrace in
+      let var_infos = Causal_core.var_infos_of_grid model ctrace_grid ((Array.length ctrace_array) - 1) in
 
       (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)
       (* For each events of this counterfactual causal core <that has no counterfactual-only cause|that as at least one factual cause>,
