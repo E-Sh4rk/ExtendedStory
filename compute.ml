@@ -20,9 +20,9 @@ let rec get_first_rule_event model rule_name trace = match trace with
   | (Rule (rule_id,inst,infos))::trace when rule_ast_name model rule_id = rule_name -> infos.story_id
   | s::trace -> get_first_rule_event model rule_name trace
 
-let trace_succeed eoi_id trace = match Array.length trace with
+let trace_succeed eoi_id trace = match List.length trace with
   | 0 -> false
-  | n -> begin match trace.(n-1) with
+  | n -> begin match List.nth trace (n-1) with
     | Resimulation.Factual_happened (Rule (rid,inst,infos)) when infos.story_id = eoi_id -> true
     | _ -> false
   end
@@ -31,22 +31,35 @@ let resimulate_and_sample nb eoi_id model block_pred stop_pred trace =
   let rec aux nb acc = match nb with
     | 0 -> acc
     | n -> let (nb_failed,wit) = acc in 
-    let ctrace = Array.of_list (resimulate model block_pred stop_pred trace) in
+    let ctrace = resimulate model block_pred stop_pred trace in
     if trace_succeed eoi_id ctrace then
     aux (nb-1) (nb_failed,wit)
     else
     aux (nb-1) (nb_failed+1,Some ctrace)
   in aux nb (0,None)
 
+let set_id id step = match step with
+  | Rule (rid,inst,infos) -> Rule (rid,inst,{infos with story_id=id})
+  | Pert (str,inst,infos) -> Pert (str,inst,{infos with story_id=id})
+  | Obs (str,inst,infos) -> Obs (str,inst,{infos with story_id=id})
+  | _ -> step
+
 let compute_causal_core model trace eoi_id =
-  let set_id id step = match step with
-  | Rule (rid,inst,infos) -> Rule (rid,inst,{infos with story_id=id+1})
-  | Pert (str,inst,infos) -> Pert (str,inst,{infos with story_id=id+1})
-  | Obs (str,inst,infos) -> Obs (str,inst,{infos with story_id=id+1})
-  | _ -> step in
   let subtrace = [] in
   (* We have also to set IDs *)
-  List.mapi set_id subtrace
+  List.mapi (fun i s -> set_id (i+1) s) subtrace
+
+let counterfactual_trace_to_regular trace =
+  let is_happenning_event cs = match cs with
+  | Resimulation.Factual_happened _ | Resimulation.Counterfactual_happened _ -> true
+  | Resimulation.Factual_did_not_happen _ -> false in
+  (* Don't forget to set IDs for counterfactual events *)
+  let regularize_event i cs = match cs with
+  | Resimulation.Factual_happened step -> step
+  | Resimulation.Counterfactual_happened step -> set_id (-i-1) step
+  | Resimulation.Factual_did_not_happen _ -> failwith "Invalid counterfactual trace !" in
+  let trace = List.filter is_happenning_event trace in
+  List.mapi regularize_event trace
 
 type counterfactual_part = (step list) * ((int*int) list)
 (*
@@ -74,7 +87,8 @@ IDs of the events are :
     else
     (
       let Some ctrace = ctrace in
-      (* Convert the counterfactual trace to a regular trace (don't forget to set IDs for counterfactual events) *)
+      (* Convert the counterfactual trace to a regular trace *)
+      let reg_ctrace = counterfactual_trace_to_regular ctrace in
       (* Find the last events that has inhibited the first event of the causal core that has been blocked :
       it is the last events that changed the value of a tested logical site from a good value to a wrong value. *)
       (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)
