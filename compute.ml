@@ -68,7 +68,22 @@ let rec first_inhibited_event factual_subtrace ctrace = match ctrace with
   then step else first_inhibited_event factual_subtrace ctrace
   | _::ctrace -> first_inhibited_event factual_subtrace ctrace
 
-let last_inhibitive_event_before index grid var_infos constr = ()
+let rec last_inhibitive_event_before index grid var_infos constr =
+  try
+  (
+  let Grid.Constr (var, value) = constr in
+  let history = Hashtbl.find var_infos (Grid.Var var) in
+  let last = History.last_before index history in
+  match last with
+  | None -> None
+  | Some (i,_) -> let (test,actions) = grid.(i) in
+  if List.exists (fun c -> c=constr) actions
+  then None (* It is a good action *)
+  else (
+    let prev = last_inhibitive_event_before i grid var_infos constr in
+    if prev = None then Some i else prev
+  )
+  ) with Not_found -> None
 
 type counterfactual_part = (step list) * ((int*int) list)
 (*
