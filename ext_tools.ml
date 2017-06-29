@@ -23,6 +23,16 @@ let get_id step = match step with
   -> infos.story_id
   | _ -> raise Not_found
 
+let get_time step default = match step with
+  | Trace.Rule (_,_,infos) | Trace.Pert (_,_,infos) | Trace.Obs (_,_,infos)
+  -> infos.story_time
+  | _ -> default
+
+let rec nb_of_events_before_time trace time = match trace with
+  | [] -> 0
+  | s::trace when get_time s 0.0 >= time -> 0
+  | s::trace -> 1 + (nb_of_events_before_time trace time)
+
 let same_type x y = match x, y with
 | n, m when n >= 0 && m < 0 -> false
 | n, m when n < 0 && m >= 0 -> false

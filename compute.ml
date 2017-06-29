@@ -97,9 +97,8 @@ let rec last_inhibitive_event_before index (grid, var_infos) constr =
     )
   ) with Not_found -> None
 
-let find_inhibitive_event index (grid,vi) =
-  let (tests,_) = grid.(index) in
-  let events = List.map (last_inhibitive_event_before index (grid,vi)) tests in
+let find_inhibitive_event trace (grid,vi) tests before_index =
+  let events = List.map (last_inhibitive_event_before before_index (grid,vi)) tests in
   let events = List.filter (fun opt -> opt <> None) events in
   let events = List.map (fun (Some i) -> i) events in
   list_min events
@@ -119,7 +118,7 @@ IDs of the events are :
  >= 0 for factual events (match with KaFlow IDs)
  < 0 for counterfactual-only events *)
 
- let add_counterfactual_parts model trace infos eoi_id config factual_core =
+ let add_counterfactual_parts model trace (grid,vi) eoi_id config factual_core =
    (* Factual subtrace, counterfactual parts, events to maintain in the factual subtrace *)
    let rec aux factual_core counterfactuals events_in_story =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core :
@@ -145,15 +144,19 @@ IDs of the events are :
       (* Find the last events that has inhibited the first event of the causal core that has been inhibited :
       it is the last events that changed the value of a tested logical site from a good value to a wrong value. *)
       let inhibited_event = first_inhibited_event factual_core ctrace in
-      let Some (inhibited_event_index, _) = get_event (get_id inhibited_event) reg_ctrace in
-      let cinfos = compute_trace_infos model reg_ctrace inhibited_event_index in
-      let ceoi_index = find_inhibitive_event inhibited_event_index cinfos in
+      let Some (inhibited_event_index, _) = get_event (get_id inhibited_event) trace in
+      let (inhibited_tests, _) = grid.(inhibited_event_index) in
+      let inhibited_event_time = get_time inhibited_event 0.0 in
+      let inhibited_event_cindex = nb_of_events_before_time reg_ctrace inhibited_event_time in
+      let (cgrid,cvi) = compute_trace_infos model reg_ctrace (inhibited_event_cindex-1) in
+      let ceoi_index = find_inhibitive_event reg_ctrace (cgrid,cvi) inhibited_tests inhibited_event_cindex in
       (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)
-      let ccore = compute_causal_core model cinfos [ceoi_index] in
+      let ccore = compute_causal_core model (cgrid,cvi) [ceoi_index] in
       let inhibitive_arrow = (get_id (List.nth reg_ctrace ceoi_index), get_id inhibited_event) in
       let csubtrace = core_to_subtrace ccore reg_ctrace in 
       (* For each events of this counterfactual causal core <that has no counterfactual-only cause|that as at least one factual cause>,
       find the last events in the factual trace among those that we blocked that prevent it (same method as above). Indicate in the counterfactual core the origin of these inhibition arrows. *)
+      
       (* Update the factual core : compute a new factual causal core with all the previous added events + events with an inhibitive arrow <+ other factual events of the counterfactual core if we want to have more links with the factual core at the end>. *)
       aux factual_core counterfactuals events_in_story
     )
