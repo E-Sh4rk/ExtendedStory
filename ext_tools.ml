@@ -1,7 +1,9 @@
 
 let log s = print_string s ; print_newline () ; flush stdout
 
-let list_max lst = List.fold_left max 0 lst
+let list_max lst = List.fold_left max (List.hd lst) lst
+
+let list_min lst = List.fold_left min (List.hd lst) lst
 
 let srule_id_from_rule_id env rid = (Model.get_rule env rid).Primitives.syntactic_rule
 
