@@ -21,17 +21,19 @@ let set_id id step = match step with
 let get_id step = match step with
   | Trace.Rule (_,_,infos) | Trace.Pert (_,_,infos) | Trace.Obs (_,_,infos)
   -> infos.story_id
-  | _ -> 0
+  | _ -> raise Not_found
 
 let same_type x y = match x, y with
 | n, m when n >= 0 && m < 0 -> false
 | n, m when n < 0 && m >= 0 -> false
 | n, m -> true
 
-let rec get_event id trace = match id, trace with
-| _, [] -> None
-| _, s::trace when get_id s = id -> Some s
-| n, s::trace when not (same_type n (get_id s)) -> get_event id trace
-| n, s::trace when n >= 0 && get_id s > id -> None
-| n, s::trace when n < 0 && get_id s < id -> None
-| _, s::trace -> get_event id trace
+let get_event id trace =
+  let rec aux trace index = match id, trace with
+  | _, [] -> None
+  | _, s::trace when get_id s = id -> Some (index, s)
+  | n, s::trace when not (same_type n (get_id s)) -> aux trace (index+1)
+  | n, s::trace when n >= 0 && get_id s > id -> None
+  | n, s::trace when n < 0 && get_id s < id -> None
+  | _, s::trace -> aux trace (index+1)
+  in aux trace 0

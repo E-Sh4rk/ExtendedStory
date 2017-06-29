@@ -66,9 +66,12 @@ let counterfactual_trace_to_regular trace =
 let rec first_inhibited_event factual_core ctrace = match ctrace with
   | [] -> failwith "First inhibited event not found !"
   | (Resimulation.Factual_did_not_happen (blocked, step))::ctrace when not blocked
-  -> let id = get_id step in
-  if id >= 0 && List.exists (fun i -> i=id) factual_core
-  then step else first_inhibited_event factual_core ctrace
+  -> begin
+  try (
+    let id = get_id step in
+    if id >= 0 && List.exists (fun i -> i=id) factual_core
+    then step else first_inhibited_event factual_core ctrace
+  ) with Not_found -> first_inhibited_event factual_core ctrace end
   | _::ctrace -> first_inhibited_event factual_core ctrace
 
 let rec last_inhibitive_event_before index grid var_infos constr =
@@ -126,9 +129,10 @@ IDs of the events are :
       (* Find the last events that has inhibited the first event of the causal core that has been inhibited :
       it is the last events that changed the value of a tested logical site from a good value to a wrong value. *)
       let inhibited_event = first_inhibited_event factual_core ctrace in
-      let ctrace_array = Array.of_list reg_ctrace in
+      let Some (inhibited_event_index, _) = get_event (get_id inhibited_event) reg_ctrace in
       let (ctrace_grid, _) = Grid.build_grid model reg_ctrace in
-      let var_infos = Causal_core.var_infos_of_grid model ctrace_grid ((Array.length ctrace_array) - 1) in
+      let var_infos = Causal_core.var_infos_of_grid model ctrace_grid inhibited_event_index in
+
 
       (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)
       (* For each events of this counterfactual causal core <that has no counterfactual-only cause|that as at least one factual cause>,
