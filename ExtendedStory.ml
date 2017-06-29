@@ -40,7 +40,7 @@ let main () =
     {
       nb_samples   = 5;
       threshold    = 0.5;
-      more_inhibition_arrows = false;
+      inhibition_arrows = One;
       more_relations_with_factual = false;
       show_entire_counterfactual_stories = false
     } in

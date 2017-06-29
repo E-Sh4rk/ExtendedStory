@@ -2,11 +2,13 @@ open Interface
 open Trace
 open Ext_tools
 
+type inhibition_arrows_limitation = One | Max_one_per_event | All
+
 type configuration =
 {
   nb_samples   : int;
   threshold    : float;
-  more_inhibition_arrows : bool;
+  inhibition_arrows : inhibition_arrows_limitation;
   more_relations_with_factual : bool;
   show_entire_counterfactual_stories : bool;
 }
@@ -154,8 +156,9 @@ IDs of the events are :
       let ccore = compute_causal_core model (cgrid,cvi) [ceoi_index] in
       let inhibitive_arrow = (get_id (List.nth reg_ctrace ceoi_index), get_id inhibited_event) in
       let csubtrace = core_to_subtrace ccore reg_ctrace in 
-      (* For each events of this counterfactual causal core <that has no counterfactual-only cause|that as at least one factual cause>,
-      find the last events in the factual trace among those that we blocked that prevent it (same method as above). Indicate in the counterfactual core the origin of these inhibition arrows. *)
+      (* For each direct causal relation between a counterfactual-only event and a factual event of the counterfactual core,
+      find the last events in the factual trace that prevent it (same method as above, depending on the config).
+      Indicate in the counterfactual core the origin of these inhibition arrows. *)
       
       (* Update the factual core : compute a new factual causal core with all the previous added events + events with an inhibitive arrow <+ other factual events of the counterfactual core if we want to have more links with the factual core at the end>. *)
       aux factual_core counterfactuals events_in_story
@@ -167,14 +170,14 @@ let compute_extended_story model trace rule_name config =
   let trace = List.mapi (fun i s -> set_id i s) trace in
   (* Determining event of interest *)
   let eoi_id = get_first_rule_event model rule_name trace in
-  (* Compute factual causal core (just the subtrace) *)
+  (* Computing factual causal core *)
   let infos = compute_trace_infos model trace eoi_id in
   let core = compute_causal_core model infos [eoi_id] in
-  (* Add counterfactual parts *)
+  (* Adding counterfactual parts *)
   let (core, counterfactual_parts) = add_counterfactual_parts model trace infos eoi_id config core in
   (* Merge the factual causal core and all the counterfactual causal cores. Depending on the details wanted by the user, we can :
       - Merge everything by merging together nodes that represent the same event
       - Keep only counterfactual-only events of counterfactual cores
-      Don't forget to put all the inhibition arrows that had been found.
+      Don't forget to put all the inhibition arrows that had been found and to compute relations for the factual core and each counterfactual parts.
   *)
   ()
