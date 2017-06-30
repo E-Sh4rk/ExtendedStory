@@ -1,5 +1,4 @@
 open Interface
-open Trace
 open Ext_tools
 
 (* TODO : Solve issue with Init (no ID) *)
@@ -21,8 +20,9 @@ exception Not_found
 
 let rec get_first_rule_event model rule_name trace = match trace with
   | [] -> raise Not_found
-  | (Rule (rule_id,inst,infos))::trace when rule_ast_name model rule_id = rule_name -> infos.story_id
-  | (Obs (name,inst,infos))::trace when name = rule_name -> infos.story_id
+  | (Trace.Rule (rule_id,inst,infos))::trace when rule_ast_name model rule_id = rule_name -> infos.story_id
+  | (Trace.Obs (name,inst,infos))::trace when name = rule_name -> infos.story_id
+  | (Trace.Pert (name,inst,infos))::trace when name = rule_name -> infos.story_id
   | s::trace -> get_first_rule_event model rule_name trace
 
 let trace_succeed eoi_id trace = match List.length trace with
@@ -143,9 +143,9 @@ let factual_events_of_trace steps =
   let steps = List.filter (fun s -> try get_id s >= 0 with Not_found -> false) steps in
   List.map get_id steps
 
-type counterfactual_part = (step list) * ((int * Grid.constr * int) list)
+type counterfactual_part = (step list) * ((int * int) list) * ((int * Grid.constr * int) list) * ((int * Grid.constr * int) list)
 (*
-(events * inhibition arrows) 
+(events * precedence arrows * direct causality arrows * inhibition arrows) 
 IDs of the events are :
  >= 0 for factual events (match with KaFlow IDs)
  < 0 for counterfactual-only events *)
@@ -197,16 +197,19 @@ IDs of the events are :
       | One -> [list_min_c (fun (a,c,b) (a',c',b') -> compare a a') inhibitions]
       | Max_one_per_event -> List.map (fun x -> list_min_c (fun (a,c,b) (a',c',b') -> compare a a') x) (group_arrows_by_dest inhibitions)
       end in
+      let activations = List.map index_arrow_to_id_arrow activations in
+      let precedences = Precedence.transitive_reduction (Precedence.compute_precedence reg_ctrace cgrid ccore) in
+      let precedences = List.map index_arrow_to_id_arrow activations in
       (* Update the factual core : compute a new factual causal core with all the previous added events + factual events with an inhibitive arrow
       + other factual events of the counterfactual core if we want to have more links with the factual core at the end. *)
       let inhibitions_arrows = inhibition_arrow::inhibitions in
-      let counterfactuals = (csubtrace,inhibitions_arrows)::counterfactuals in
       let events_in_factual = (factual_events_of_arrows inhibitions_arrows) @ events_in_factual in
       let events_in_factual = if config.more_relations_with_factual
       then (factual_events_of_trace csubtrace) @ events_in_factual
       else events_in_factual in
       let events_in_factual = List.sort_uniq compare events_in_factual in
       let factual_core = compute_causal_core model (grid,vi) events_in_factual in
+      let counterfactuals = (csubtrace,precedences,activations,inhibitions_arrows)::counterfactuals in
       aux factual_core counterfactuals events_in_factual
     )
    in aux factual_core [] [eoi_id]
