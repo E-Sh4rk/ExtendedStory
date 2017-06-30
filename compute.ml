@@ -95,7 +95,7 @@ let rec last_inhibitive_event_before index (grid, var_infos) constr =
     then None (* It is an activation *)
     else (
       let prev = last_inhibitive_event_before i (grid, var_infos) constr in
-      if prev = None then Some i else prev
+      if prev = None then Some (i,constr) else prev
     )
   ) with Not_found -> None
 
@@ -105,9 +105,6 @@ let find_inhibitive_events trace (grid,vi) tests before_index =
   let events = List.map (fun (Some i) -> i) events in
   events
 
-let find_inhibitive_event trace (grid,vi) tests before_index =
-  list_min (find_inhibitive_events trace (grid,vi) tests before_index)
-
 let core_to_subtrace trace core =
   let rec aux i core trace = match core, trace with
   | [], _ -> []
@@ -116,7 +113,7 @@ let core_to_subtrace trace core =
   | _, _ -> failwith "Invalid core !"
   in aux 0 trace
 
-let find_inhibitive_arrow_for_relation trace (grid,vi) ctrace (index1, constr, index2) =
+let find_fc_inhibitive_arrow trace (grid,vi) ctrace (index1, constr, index2) =
   let ev1 = List.nth ctrace index1
   and ev2 = List.nth ctrace index2 in
   let id1 = get_id ev1
@@ -125,10 +122,18 @@ let find_inhibitive_arrow_for_relation trace (grid,vi) ctrace (index1, constr, i
   else (
     let time = get_time ev2 0.0 in
     let findex = nb_of_events_before_time trace time in
-    List.map (fun i -> (i,id2)) (find_inhibitive_events trace (grid,vi) [constr] findex)
+    List.map (fun (i,constr) -> (i,constr,id2)) (find_inhibitive_events trace (grid,vi) [constr] findex)
   )
 
-type counterfactual_part = (step list) * ((int*int) list)
+let group_arrows_by_dest lst =
+  let rec aux lst = match lst with
+  | [] -> []
+  | (s,c,d)::(s',c',d')::lst when d=d' -> let fg::gs = (aux ((s',c',d')::lst)) in
+  ((s,c,d)::fg)::gs
+  | a::lst -> [a]::(aux lst) in
+  aux (List.sort (fun (src,c,dest) (src',c',dest') -> compare dest dest') lst)
+
+type counterfactual_part = (step list) * ((int * Grid.constr * int) list)
 (*
 (events * inhibition arrows) 
 IDs of the events are :
@@ -165,21 +170,22 @@ IDs of the events are :
       let inhibited_event_time = get_time inhibited_event 0.0 in
       let inhibited_event_cindex = nb_of_events_before_time reg_ctrace inhibited_event_time in
       let (cgrid,cvi) = compute_trace_infos model reg_ctrace (inhibited_event_cindex-1) in
-      let ceoi_index = find_inhibitive_event reg_ctrace (cgrid,cvi) inhibited_tests inhibited_event_cindex in
+      let inhibitive_events = find_inhibitive_events reg_ctrace (cgrid,cvi) inhibited_tests inhibited_event_cindex in
       (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)
+      let (ceoi_index,ceoi_constr) = list_min_c (fun (i,const) (i',constr') -> compare i i') inhibitive_events in
       let ccore = compute_causal_core model (cgrid,cvi) [ceoi_index] in
-      let inhibitive_arrow = (get_id (List.nth reg_ctrace ceoi_index), get_id inhibited_event) in
+      let inhibitive_arrow = (get_id (List.nth reg_ctrace ceoi_index), ceoi_constr, get_id inhibited_event) in
       let csubtrace = core_to_subtrace ccore reg_ctrace in 
       (* For each direct causal relation between a counterfactual-only event and a factual event of the counterfactual core,
       find the last events in the factual trace that prevent it (same method as above, depending on the config).
       Indicate in the counterfactual core the origin of these inhibition arrows. *)
       let activations = Precedence.compute_strong_deps model cgrid ccore in
-      let inhibitions = List.map (find_inhibitive_arrow_for_relation trace (grid,vi) reg_ctrace) activations in
+      let inhibitions = List.map (find_fc_inhibitive_arrow trace (grid,vi) reg_ctrace) activations in
       let inhibitions = List.flatten inhibitions in
       let inhibitions = begin match config.inhibition_arrows with
       | All -> inhibitions
-      | One -> [list_min_c (fun (a,b) (a',b') -> compare a a') inhibitions]
-      | Max_one_per_event -> inhibitions (* TODO *)
+      | One -> [list_min_c (fun (a,c,b) (a',c',b') -> compare a a') inhibitions]
+      | Max_one_per_event -> List.map (fun x -> list_min_c (fun (a,c,b) (a',c',b') -> compare a a') x) (group_arrows_by_dest inhibitions)
       end in
       (* Update the factual core : compute a new factual causal core with all the previous added events + events with an inhibitive arrow <+ other factual events of the counterfactual core if we want to have more links with the factual core at the end>. *)
       (* TODO *)

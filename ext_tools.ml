@@ -8,9 +8,6 @@ let max_c c = min_c (fun a b -> - (c a b))
 let list_max_c c lst = List.fold_left (max_c c) (List.hd lst) lst
 let list_min_c c lst = List.fold_left (min_c c) (List.hd lst) lst
 
-let list_max lst = list_max_c compare lst
-let list_min lst = list_min_c compare lst
-
 let srule_id_from_rule_id env rid = (Model.get_rule env rid).Primitives.syntactic_rule
 
 let rule_ast_name env rule_id = 
