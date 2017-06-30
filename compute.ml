@@ -113,7 +113,7 @@ let core_to_subtrace trace core =
   | _, _ -> failwith "Invalid core !"
   in aux 0 core trace
 
-let find_fc_inhibitive_arrow trace (grid,vi) ctrace (index1, constr, index2) =
+let find_fc_inhibition_arrow trace (grid,vi) ctrace (index1, constr, index2) =
   let ev1 = List.nth ctrace index1
   and ev2 = List.nth ctrace index2 in
   let id1 = get_id ev1
@@ -182,13 +182,13 @@ IDs of the events are :
       (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)
       let (ceoi_index,ceoi_constr) = list_min_c (fun (i,const) (i',constr') -> compare i i') inhibitive_events in
       let ccore = compute_causal_core model (cgrid,cvi) [ceoi_index] in
-      let inhibitive_arrow = (get_id (List.nth reg_ctrace ceoi_index), ceoi_constr, get_id inhibited_event) in
+      let inhibition_arrow = (get_id (List.nth reg_ctrace ceoi_index), ceoi_constr, get_id inhibited_event) in
       let csubtrace = core_to_subtrace reg_ctrace ccore in 
       (* For each direct causal relation between a counterfactual-only event and a factual event of the counterfactual core,
       find the last events in the factual trace that prevent it (same method as above, depending on the config).
       Indicate in the counterfactual core the origin of these inhibition arrows. *)
       let activations = Precedence.compute_strong_deps model cgrid ccore in
-      let inhibitions = List.map (find_fc_inhibitive_arrow trace (grid,vi) reg_ctrace) activations in
+      let inhibitions = List.map (find_fc_inhibition_arrow trace (grid,vi) reg_ctrace) activations in
       let inhibitions = List.flatten inhibitions in
       let inhibitions = begin match config.inhibition_arrows with
       | All -> inhibitions
@@ -197,7 +197,7 @@ IDs of the events are :
       end in
       (* Update the factual core : compute a new factual causal core with all the previous added events + factual events with an inhibitive arrow
       + other factual events of the counterfactual core if we want to have more links with the factual core at the end. *)
-      let inhibitions_arrows = inhibitive_arrow::inhibitions in
+      let inhibitions_arrows = inhibition_arrow::inhibitions in
       let counterfactuals = (csubtrace,inhibitions_arrows)::counterfactuals in
       let events_in_factual = (factual_events_of_arrows inhibitions_arrows) @ events_in_factual in
       let events_in_factual = if config.more_relations_with_factual
