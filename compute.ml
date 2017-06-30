@@ -13,7 +13,7 @@ type configuration =
   show_entire_counterfactual_stories : bool;
 }
 
-let heuristic_choose_interventions () : interventions = []
+let heuristic_choose_interventions () : interventions = [] (* TODO *)
 
 exception Not_found
 
@@ -92,18 +92,21 @@ let rec last_inhibitive_event_before index (grid, var_infos) constr =
     | None -> None
     | Some (i,_) -> let (test,actions) = grid.(i) in
     if List.exists (fun c -> c=constr) actions
-    then None (* It is a good action *)
+    then None (* It is an activation *)
     else (
       let prev = last_inhibitive_event_before i (grid, var_infos) constr in
       if prev = None then Some i else prev
     )
   ) with Not_found -> None
 
-let find_inhibitive_event trace (grid,vi) tests before_index =
+let find_inhibitive_events trace (grid,vi) tests before_index =
   let events = List.map (last_inhibitive_event_before before_index (grid,vi)) tests in
   let events = List.filter (fun opt -> opt <> None) events in
   let events = List.map (fun (Some i) -> i) events in
-  list_min events
+  events
+
+let find_inhibitive_event trace (grid,vi) tests before_index =
+  list_min (find_inhibitive_events trace (grid,vi) tests before_index)
 
 let core_to_subtrace trace core =
   let rec aux i core trace = match core, trace with
@@ -112,6 +115,18 @@ let core_to_subtrace trace core =
   | core, s::trace -> aux (i+1) core trace
   | _, _ -> failwith "Invalid core !"
   in aux 0 trace
+
+let find_inhibitive_arrow_for_relation trace (grid,vi) ctrace (index1, constr, index2) =
+  let ev1 = List.nth ctrace index1
+  and ev2 = List.nth ctrace index2 in
+  let id1 = get_id ev1
+  and id2 = get_id ev2 in
+  if id1 < 0 || id2 >= 0 then []
+  else (
+    let time = get_time ev2 0.0 in
+    let findex = nb_of_events_before_time trace time in
+    List.map (fun i -> (i,id2)) (find_inhibitive_events trace (grid,vi) [constr] findex)
+  )
 
 type counterfactual_part = (step list) * ((int*int) list)
 (*
@@ -146,8 +161,7 @@ IDs of the events are :
       (* Find the last events that has inhibited the first event of the causal core that has been inhibited :
       it is the last events that changed the value of a tested logical site from a good value to a wrong value. *)
       let inhibited_event = first_inhibited_event factual_core ctrace in
-      let Some (inhibited_event_index, _) = get_event (get_id inhibited_event) trace in
-      let (inhibited_tests, _) = grid.(inhibited_event_index) in
+      let (inhibited_tests, _) = grid.(get_id inhibited_event) in
       let inhibited_event_time = get_time inhibited_event 0.0 in
       let inhibited_event_cindex = nb_of_events_before_time reg_ctrace inhibited_event_time in
       let (cgrid,cvi) = compute_trace_infos model reg_ctrace (inhibited_event_cindex-1) in
@@ -159,8 +173,16 @@ IDs of the events are :
       (* For each direct causal relation between a counterfactual-only event and a factual event of the counterfactual core,
       find the last events in the factual trace that prevent it (same method as above, depending on the config).
       Indicate in the counterfactual core the origin of these inhibition arrows. *)
-      
+      let activations = Precedence.compute_strong_deps model cgrid ccore in
+      let inhibitions = List.map (find_inhibitive_arrow_for_relation trace (grid,vi) reg_ctrace) activations in
+      let inhibitions = List.flatten inhibitions in
+      let inhibitions = begin match config.inhibition_arrows with
+      | All -> inhibitions
+      | One -> [list_min_c (fun (a,b) (a',b') -> compare a a') inhibitions]
+      | Max_one_per_event -> inhibitions (* TODO *)
+      end in
       (* Update the factual core : compute a new factual causal core with all the previous added events + events with an inhibitive arrow <+ other factual events of the counterfactual core if we want to have more links with the factual core at the end>. *)
+      (* TODO *)
       aux factual_core counterfactuals events_in_story
     )
    in aux factual_core [] [eoi_id]
@@ -180,4 +202,5 @@ let compute_extended_story model trace rule_name config =
       - Keep only counterfactual-only events of counterfactual cores
       Don't forget to put all the inhibition arrows that had been found and to compute relations for the factual core and each counterfactual parts.
   *)
+  (* TODO *)
   ()
