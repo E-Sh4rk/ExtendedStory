@@ -1,8 +1,6 @@
 open Interface
 open Ext_tools
 
-(* TODO : Solve issue with Init (no ID) *)
-
 type inhibition_arrows_limitation = One | Max_one_per_event | All
 
 type configuration =
@@ -18,12 +16,18 @@ let heuristic_choose_interventions () : interventions = [] (* TODO *)
 
 exception Not_found
 
-let rec get_first_rule_event model rule_name trace = match trace with
+let rec get_eoi model rule_name trace = match trace with
   | [] -> raise Not_found
-  | (Trace.Rule (rule_id,inst,infos))::trace when rule_ast_name model rule_id = rule_name -> infos.story_id
-  | (Trace.Obs (name,inst,infos))::trace when name = rule_name -> infos.story_id
-  | (Trace.Pert (name,inst,infos))::trace when name = rule_name -> infos.story_id
-  | s::trace -> get_first_rule_event model rule_name trace
+  | s::trace when get_name model s "" = rule_name -> get_id s
+  | s::trace -> get_eoi model rule_name trace
+
+let compute_trace_infos model ttrace last_eoi =
+  let (grid, _) = Grid.build_grid model ttrace in
+  let var_infos = Causal_core.var_infos_of_grid model grid last_eoi in
+  (grid,var_infos)
+
+let compute_causal_core model (grid,var_infos) eois_indexes =
+  Causal_core.core_events (Causal_core.causal_core_of_eois model grid var_infos eois_indexes)
 
 let trace_succeed eoi_id trace = match List.length trace with
   | 0 -> false
@@ -42,14 +46,6 @@ let resimulate_and_sample nb eoi_id model block_pred stop_pred trace =
     else
     aux (nb-1) (nb_failed+1,Some ctrace)
   in aux nb (0,None)
-
-let compute_trace_infos model trace last_eoi =
-  let (grid, _) = Grid.build_grid model trace in
-  let var_infos = Causal_core.var_infos_of_grid model grid last_eoi in
-  (grid,var_infos)
-
-let compute_causal_core model (grid,var_infos) eois_indexes =
-  Causal_core.core_events (Causal_core.causal_core_of_eois model grid var_infos eois_indexes)
 
 let last_counterfactual_id = ref 0
 let set_ids_of_counterfactual_trace trace =
@@ -144,11 +140,19 @@ let factual_events_of_trace steps =
   List.map get_id steps
 
 type counterfactual_part = (step list) * ((int * int) list) * ((int * Grid.constr * int) list) * ((int * Grid.constr * int) list)
+(* (events * precedence arrows * direct causality arrows * inhibition arrows) *)
 (*
-(events * precedence arrows * direct causality arrows * inhibition arrows) 
-IDs of the events are :
- >= 0 for factual events (match with KaFlow IDs)
- < 0 for counterfactual-only events *)
+event IDs are :
+ >= 0 for factual events (match with indexes)
+ < 0 for counterfactual-only events
+
+step : our step type with an index and an ID
+tstep : step of the Trace module, with only a partial ID
+cstep : counterfactual step of the resimulator, with only a partial ID
+trace : list of step
+ttrace : list of tstep
+ctrace : list of cstep
+*)
 
  let add_counterfactual_parts model trace (grid,vi) eoi_id config factual_core =
    (* Factual subtrace, counterfactual parts, events to maintain in the factual subtrace *)
@@ -214,13 +218,16 @@ IDs of the events are :
     )
    in aux factual_core [] [eoi_id]
 
-let compute_extended_story model trace rule_name config =
-  (* We have to set IDs in the trace *)
-  let trace = List.mapi (fun i s -> set_id i s) trace in
+  (* TODO : Adapt above code to new ID system *)
+
+let compute_extended_story model ttrace rule_name config =
+  (* We have to set IDs in the trace and convert it *)
+  let ttrace = List.mapi set_id_of_ts i s ttrace in
+  let trace = List.mapi ts_to_step ttrace in
   (* Determining event of interest *)
-  let eoi_id = get_first_rule_event model rule_name trace in
+  let eoi_id = get_eoi model rule_name trace in
   (* Computing factual causal core *)
-  let infos = compute_trace_infos model trace eoi_id in
+  let infos = compute_trace_infos model ttrace eoi_id in
   let core = compute_causal_core model infos [eoi_id] in
   (* Adding counterfactual parts *)
   let (core, counterfactual_parts) = add_counterfactual_parts model trace infos eoi_id config core in

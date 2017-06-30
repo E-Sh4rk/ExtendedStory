@@ -23,23 +23,28 @@ let rule_ast_name env rule_id =
 
 type step = Causal_core_shared.step_id * Trace.step
 
-let set_id id step = match step with
-  | (i, Trace.Rule (rid,inst,infos)) -> (i,Trace.Rule (rid,inst,{infos with story_id=id}))
-  | (i, Trace.Pert (str,inst,infos)) -> (i,Trace.Pert (str,inst,{infos with story_id=id}))
-  | (i, Trace.Obs (str,inst,infos)) -> (i,Trace.Obs (str,inst,{infos with story_id=id}))
-  | (i, s) -> (i, s)
-
 let set_index i (_,s) = (i,s)
 let get_index (i,_) = i
 
-let get_id_from_ts step = match step with
+let get_id_of_ts step = match step with
   | Trace.Rule (_,_,infos) | Trace.Pert (_,_,infos) | Trace.Obs (_,_,infos)
   -> infos.story_id
   | _ -> raise Not_found
 
+let set_id_of_ts id step = match step with
+  | Trace.Rule (rid,inst,infos) -> Trace.Rule (rid,inst,{infos with story_id=id})
+  | Trace.Pert (str,inst,infos) -> Trace.Pert (str,inst,{infos with story_id=id})
+  | Trace.Obs (str,inst,infos) -> Trace.Obs (str,inst,{infos with story_id=id})
+  | s -> s
+
 let get_id (i,s) = match s with
   | Trace.Rule _ | Trace.Pert _ | Trace.Obs _ -> get_id_from_ts s
   | Trace.Init _ -> i
+  | _ -> failwith "Invalid trace !"
+
+let set_id id step = match step with
+  | (i, Trace.Rule _) | (i, Trace.Pert _) | (i, Trace.Obs _) -> (i, set_id_of_ts id (snd step))
+  | (_, Trace.Init inst) -> (id, Trace.Init inst)
   | _ -> failwith "Invalid trace !"
 
 let get_time (i,step) default = match step with
@@ -47,6 +52,15 @@ let get_time (i,step) default = match step with
   -> infos.story_time
   | Trace.Init _ -> 0.0
   | _ -> default
+
+let get_name model (i,step) default = match step with
+  | Trace.Rule (rule_id,inst,infos) -> rule_ast_name model rule_id
+  | Trace.Obs (name,inst,infos) -> name
+  | Trace.Pert (name,inst,infos) -> name
+  | _ -> default
+
+let ts_to_step i ts = (i, ts)
+let step_to_ts (i,ts) = ts
 
 let rec nb_of_events_before_time trace time = match trace with
   | [] -> 0
