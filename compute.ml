@@ -2,6 +2,8 @@ open Interface
 open Trace
 open Ext_tools
 
+(* TODO : Solve issue with Init (no ID) *)
+
 type inhibition_arrows_limitation = One | Max_one_per_event | All
 
 type configuration =
@@ -25,10 +27,10 @@ let rec get_first_rule_event model rule_name trace = match trace with
 
 let trace_succeed eoi_id trace = match List.length trace with
   | 0 -> false
-  | n -> begin match List.nth trace (n-1) with
-    | Resimulation.Factual_happened (Rule (rid,inst,infos)) when infos.story_id = eoi_id -> true
-    | _ -> false
-  end
+  | n -> begin try (match List.nth trace (n-1) with
+    | Resimulation.Factual_happened s when get_id s = eoi_id -> true
+    | _ -> false)
+  with Not_found -> false end
 
 let resimulate_and_sample nb eoi_id model block_pred stop_pred trace =
   let rec aux nb acc = match nb with

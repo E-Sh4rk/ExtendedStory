@@ -29,6 +29,7 @@ let get_id step = match step with
 let get_time step default = match step with
   | Trace.Rule (_,_,infos) | Trace.Pert (_,_,infos) | Trace.Obs (_,_,infos)
   -> infos.story_time
+  | Trace.Init _ -> 0.0
   | _ -> default
 
 let rec nb_of_events_before_time trace time = match trace with

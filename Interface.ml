@@ -105,11 +105,12 @@ let rec stop_conditions_to_predicate scs cstep =
   | hd::lst, _ -> stop_conditions_to_predicate lst cstep
 
 let resimulate model block_pred stop_pred trace =
+  let last_time = ref 0.0 in
   let next_event lst = match lst with
   | [] -> None
   | s::lst -> begin match step_info s with
-    | None -> failwith "Invalid trace !"
-    | Some info -> Some (s, info.story_time, block_pred s)
+    | None -> Some (s, !last_time, block_pred s)
+    | Some info -> last_time := info.story_time ; Some (s, info.story_time, block_pred s)
   end in
   let rec resimulate_step next_events state acc =
     let (consummed, cstep_opt, state) = Resimulation.do_step (next_event next_events) state in
