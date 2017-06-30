@@ -111,7 +111,7 @@ let core_to_subtrace trace core =
   | index::core, s::trace when index=i -> s::(aux (i+1) core trace)
   | core, s::trace -> aux (i+1) core trace
   | _, _ -> failwith "Invalid core !"
-  in aux 0 trace
+  in aux 0 core trace
 
 let find_fc_inhibitive_arrow trace (grid,vi) ctrace (index1, constr, index2) =
   let ev1 = List.nth ctrace index1
@@ -133,6 +133,14 @@ let group_arrows_by_dest lst =
   | a::lst -> [a]::(aux lst) in
   aux (List.sort (fun (src,c,dest) (src',c',dest') -> compare dest dest') lst)
 
+let factual_events_of_arrows arrows =
+  let involved = List.flatten (List.map (fun (e1,c,e2) -> [e1;e2]) arrows) in
+  List.filter (fun x -> x >= 0) involved
+
+let factual_events_of_trace steps =
+  let steps = List.filter (fun s -> try get_id s >= 0 with Not_found -> false) steps in
+  List.map get_id steps
+
 type counterfactual_part = (step list) * ((int * Grid.constr * int) list)
 (*
 (events * inhibition arrows) 
@@ -142,7 +150,7 @@ IDs of the events are :
 
  let add_counterfactual_parts model trace (grid,vi) eoi_id config factual_core =
    (* Factual subtrace, counterfactual parts, events to maintain in the factual subtrace *)
-   let rec aux factual_core counterfactuals events_in_story =
+   let rec aux factual_core counterfactuals events_in_factual =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core :
     For example :
     - Block permanently in trace T every event that involve species in the factual core and that is not in the factual causal core.
@@ -175,7 +183,7 @@ IDs of the events are :
       let (ceoi_index,ceoi_constr) = list_min_c (fun (i,const) (i',constr') -> compare i i') inhibitive_events in
       let ccore = compute_causal_core model (cgrid,cvi) [ceoi_index] in
       let inhibitive_arrow = (get_id (List.nth reg_ctrace ceoi_index), ceoi_constr, get_id inhibited_event) in
-      let csubtrace = core_to_subtrace ccore reg_ctrace in 
+      let csubtrace = core_to_subtrace reg_ctrace ccore in 
       (* For each direct causal relation between a counterfactual-only event and a factual event of the counterfactual core,
       find the last events in the factual trace that prevent it (same method as above, depending on the config).
       Indicate in the counterfactual core the origin of these inhibition arrows. *)
@@ -187,9 +195,17 @@ IDs of the events are :
       | One -> [list_min_c (fun (a,c,b) (a',c',b') -> compare a a') inhibitions]
       | Max_one_per_event -> List.map (fun x -> list_min_c (fun (a,c,b) (a',c',b') -> compare a a') x) (group_arrows_by_dest inhibitions)
       end in
-      (* Update the factual core : compute a new factual causal core with all the previous added events + events with an inhibitive arrow <+ other factual events of the counterfactual core if we want to have more links with the factual core at the end>. *)
-      (* TODO *)
-      aux factual_core counterfactuals events_in_story
+      (* Update the factual core : compute a new factual causal core with all the previous added events + factual events with an inhibitive arrow
+      + other factual events of the counterfactual core if we want to have more links with the factual core at the end. *)
+      let inhibitions_arrows = inhibitive_arrow::inhibitions in
+      let counterfactuals = (csubtrace,inhibitions_arrows)::counterfactuals in
+      let events_in_factual = (factual_events_of_arrows inhibitions_arrows) @ events_in_factual in
+      let events_in_factual = if config.more_relations_with_factual
+      then (factual_events_of_trace csubtrace) @ events_in_factual
+      else events_in_factual in
+      let events_in_factual = List.sort_uniq compare events_in_factual in
+      let factual_core = compute_causal_core model (grid,vi) events_in_factual in
+      aux factual_core counterfactuals events_in_factual
     )
    in aux factual_core [] [eoi_id]
 
