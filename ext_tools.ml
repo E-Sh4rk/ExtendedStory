@@ -47,11 +47,13 @@ let set_id id step = match step with
   | (_, Trace.Init inst) -> (id, Trace.Init inst)
   | _ -> failwith "Invalid trace !"
 
-let get_time (i,step) default = match step with
+let get_time_of_ts ts default = match ts with
   | Trace.Rule (_,_,infos) | Trace.Pert (_,_,infos) | Trace.Obs (_,_,infos)
   -> infos.story_time
   | Trace.Init _ -> 0.0
   | _ -> default
+
+let get_time (i,ts) default = get_time_of_ts ts
 
 let get_name model (i,step) default = match step with
   | Trace.Rule (rule_id,inst,infos) -> rule_ast_name model rule_id
@@ -61,6 +63,20 @@ let get_name model (i,step) default = match step with
 
 let ts_to_step i ts = (i, ts)
 let step_to_ts (i,ts) = ts
+
+let trace_to_ttrace trace = List.map step_to_ts trace
+let ttrace_to_trace ttrace = List.mapi ts_to_step ttrace
+
+let ctrace_to_trace ctrace =
+  let is_happenning_event cs = match cs with
+  | Resimulation.Factual_happened _ | Resimulation.Counterfactual_happened _ -> true
+  | Resimulation.Factual_did_not_happen _ -> false in
+  let regularize_event i cs = match cs with
+  | Resimulation.Factual_happened ts ->  ts_to_step i ts
+  | Resimulation.Counterfactual_happened ts -> ts_to_step i ts
+  | _ -> assert false in
+  let ctrace = List.filter is_happenning_event ctrace in
+  List.mapi regularize_event ctrace
 
 let rec nb_of_events_before_time trace time = match trace with
   | [] -> 0
