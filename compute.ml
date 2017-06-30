@@ -116,12 +116,12 @@ let find_inhibitive_events (grid,vi) tests before_index =
   List.map (fun (Some i) -> i) events
 
 let core_to_subtrace trace core =
-  let rec aux i core trace = match core, trace with
+  let rec aux i trace core = match core, trace with
   | [], _ -> []
   | index::core, s::trace when index=i -> s::(aux (i+1) core trace)
   | core, s::trace -> aux (i+1) core trace
-  | _, _ -> failwith "Invalid core !"
-  in aux 0 core trace
+  | _, _ -> assert false
+  in aux 0 trace core
 
 let find_fc_inhibition_arrow trace (grid,vi) ctrace (index1, constr, index2) =
   let ev1 = List.nth ctrace index1
@@ -183,11 +183,11 @@ let factual_events_of_trace steps =
       let (cf_grid,cf_vi) = compute_trace_infos model cf_ttrace (inhibited_cf_index-1) in
       let inhibitive_indexes = find_inhibitive_events (cf_grid,cf_vi) inhibited_tests inhibited_cf_index in
       (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)
+      let (cf_eoi_index,cf_eoi_constr) = list_min_c (fun (i,const) (i',constr') -> compare i i') inhibitive_indexes in
+      let cf_core = compute_causal_core model (cf_grid,cf_vi) [cf_eoi_index] in
+      let inhibition_arrow = (get_id (List.nth cf_trace cf_eoi_index), cf_eoi_constr, get_id_of_ts inhibited_ts) in
+      let cf_subtrace = core_to_subtrace cf_trace cf_core in
       (***************************************TODO*****************************************)
-      let (ceoi_index,ceoi_constr) = list_min_c (fun (i,const) (i',constr') -> compare i i') inhibitive_events in
-      let ccore = compute_causal_core model (cgrid,cvi) [ceoi_index] in
-      let inhibition_arrow = (get_id (List.nth reg_ctrace ceoi_index), ceoi_constr, get_id inhibited_event) in
-      let csubtrace = core_to_subtrace reg_ctrace ccore in 
       (* For each direct causal relation between a counterfactual-only event and a factual event of the counterfactual core,
       find the last events in the factual trace that prevent it (same method as above, depending on the config).
       Indicate in the counterfactual core the origin of these inhibition arrows. *)
