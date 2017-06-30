@@ -124,9 +124,8 @@ let core_to_subtrace trace core =
   in aux 0 trace core
 
 let find_fc_inhibition_arrow trace (grid,vi) cf_trace (index1, constr, index2) =
-  let ev1 = List.nth cf_trace index1
-  and ev2 = List.nth cf_trace index2 in
-  let id1 = get_id ev1
+  let ev2 = List.nth cf_trace index2 in
+  let id1 = index_to_id cf_trace index1
   and id2 = get_id ev2 in
   if id1 < 0 || id2 >= 0 then []
   else (
@@ -185,7 +184,7 @@ let factual_events_of_trace trace =
       (* Select the first (earliest) of these events and compute its causal core. Add this counterfactual causal core to the list and indicate where go the inhibition arrow. *)
       let (cf_eoi_index,cf_eoi_constr) = list_min_c (fun (i,const) (i',constr') -> compare i i') inhibitive_indexes in
       let cf_core = compute_causal_core model (cf_grid,cf_vi) [cf_eoi_index] in
-      let inhibition_arrow = (get_id (List.nth cf_trace cf_eoi_index), cf_eoi_constr, get_id_of_ts inhibited_ts) in
+      let inhibition_arrow = (index_to_id cf_trace cf_eoi_index, cf_eoi_constr, get_id_of_ts inhibited_ts) in
       let cf_subtrace = core_to_subtrace cf_trace cf_core in
       (* For each direct causal relation between a counterfactual-only event and a factual event of the counterfactual core,
       find the last events in the factual trace that prevent it (same method as above, depending on the config).
@@ -198,10 +197,10 @@ let factual_events_of_trace trace =
       | One -> [list_min_c (fun (a,c,b) (a',c',b') -> compare a a') inhibitions]
       | Max_one_per_event -> List.map (fun x -> list_min_c (fun (a,c,b) (a',c',b') -> compare a a') x) (group_arrows_by_dest inhibitions)
       end in
-      (***************************************TODO*****************************************)
-      let activations = List.map index_arrow_to_id_arrow activations in
+      let activations = List.map (fun (i1,c,i2) -> (index_to_id cf_trace i1,c,index_to_id cf_trace i2)) activations in
       let precedences = Precedence.transitive_reduction (Precedence.compute_precedence reg_ctrace cgrid ccore) in
-      let precedences = List.map index_arrow_to_id_arrow activations in
+      let precedences = List.map (fun (i1,i2) -> (index_to_id cf_trace i1,index_to_id cf_trace i2)) activations in
+      (***************************************TODO*****************************************)
       (* Update the factual core : compute a new factual causal core with all the previous added events + factual events with an inhibitive arrow
       + other factual events of the counterfactual core if we want to have more links with the factual core at the end. *)
       let inhibitions_arrows = inhibition_arrow::inhibitions in

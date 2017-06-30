@@ -78,6 +78,9 @@ let ctrace_to_trace ctrace =
   let ctrace = List.filter is_happenning_event ctrace in
   List.mapi regularize_event ctrace
 
+let index_to_id trace index =
+  get_id (List.nth trace index)
+
 let rec nb_of_events_before_time trace time = match trace with
   | [] -> 0
   | s::trace when get_time s 0.0 >= time -> 0
