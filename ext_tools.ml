@@ -10,6 +10,11 @@ let max_c c = min_c (fun a b -> - (c a b))
 let list_max_c c lst = List.fold_left (max_c c) (List.hd lst) lst
 let list_min_c c lst = List.fold_left (min_c c) (List.hd lst) lst
 
+let rec cut_after_index i lst = match i, lst with
+  | _, [] -> []
+  | 0, s::lst -> [s]
+  | n, s::lst -> s::(cut_after_index (n-1) lst)
+
 (* ----- Kappa ----- *)
 
 let srule_id_from_rule_id env rid = (Model.get_rule env rid).Primitives.syntactic_rule
@@ -100,3 +105,7 @@ let get_event id trace =
   | n, s::trace when n < 0 && get_id s < id -> None
   | _, s::trace -> aux trace (index+1)
   in aux trace 0
+
+let rec cut_after id trace = match trace with
+  | s::trace when get_id s = id -> [s]
+  | s::trace -> s::(cut_after id trace)

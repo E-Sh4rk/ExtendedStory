@@ -3,7 +3,7 @@ open Ext_tools
 
 (*
 event IDs are :
- >= 0 for factual events (match with indexes)
+ >= 0 for factual events (match with indexes in the factual trace)
  < 0 for counterfactual-only events
 
 step : our step type with an index and an ID
@@ -36,9 +36,10 @@ type configuration =
   show_entire_counterfactual_stories : bool;
 }
 
+ (* For example :
+    - Block permanently in trace T every event that involve agents in the factual core and that are not in the factual causal core.
+    - Block permanently an event that is suspected to have an impact later.*)
 let heuristic_choose_interventions () : interventions = [] (* TODO *)
-
-exception Not_found
 
 let rec get_eoi model rule_name trace = match trace with
   | [] -> raise Not_found
@@ -153,21 +154,22 @@ let factual_events_of_trace trace =
 
  let add_cf_parts model (trace,ttrace) (grid,vi) eoi_id config core =
    let rec aux core cf_parts events_in_factual =
-    (* Choose intervention (heuristic) depending on the trace and the current factual causal core :
-    For example :
-    - Block permanently in trace T every event that involve species in the factual core and that is not in the factual causal core.
-    - Block permanently an event that is suspected to have an impact later.*)
+    (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
+    log "Choosing interventions..." ;
     let interventions = heuristic_choose_interventions () in
     let block_pred = interventions_to_predicate interventions
     and stop_pred = stop_conditions_to_predicate [Event_has_happened eoi_id;Event_has_not_happened eoi_id] in
     (* Compute and sample counterfactual traces (resimulation stops when eid has happened/has been blocked) *)
     (* Take one of the counterfactual traces that failed as witness
     (heuristic? random among the traces that block the eoi? smallest core? more blocked event?) *)
+    log "Resimulating..." ;
     let (nb_failed,ctrace) = resimulate_and_sample model config.nb_samples eoi_id block_pred stop_pred ttrace in
     let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
+    log ("Ratio : "^(string_of_float ratio)) ;
     if ratio >= config.threshold then (core, cf_parts)
     else
     (
+      log "Computing counterfactual experiment..." ;
       (* Don't forget to set IDs for counterfactual events & conversions *)
       let Some ctrace = ctrace in
       let ctrace = set_ids_of_ctrace ctrace in
@@ -206,6 +208,7 @@ let factual_events_of_trace trace =
       let precedences = List.map (fun (i1,i2) -> (index_to_id cf_trace i1,index_to_id cf_trace i2)) precedences in
       (* Update the factual core : compute a new factual causal core with all the previous added events + factual events with an inhibitive arrow
       + other factual events of the counterfactual core if we want to have more links with the factual core at the end. *)
+      log "Updating factual core..." ;
       let inhibitions = inhibitions_cf@inhibitions_fc in
       let events_in_factual = (factual_events_of_arrows inhibitions) @ events_in_factual in
       let events_in_factual = if config.more_relations_with_factual
@@ -219,11 +222,14 @@ let factual_events_of_trace trace =
    in aux core [] [eoi_id]
 
 let compute_extended_story model ttrace rule_name config =
+  log "Computing initial factual core..." ;
   (* We have to set IDs in the trace and convert it *)
   let ttrace = List.mapi set_id_of_ts ttrace in
   let trace = ttrace_to_trace ttrace in
-  (* Determining event of interest *)
+  (* Determining event of interest and truncate the traces *)
   let eoi_id = get_eoi model rule_name trace in
+  let trace = cut_after_index eoi_id trace in
+  let ttrace = cut_after_index eoi_id ttrace in
   (* Computing factual causal core *)
   let infos = compute_trace_infos model ttrace eoi_id in
   let core = compute_causal_core model infos [eoi_id] in
@@ -234,5 +240,6 @@ let compute_extended_story model ttrace rule_name config =
       - Keep only counterfactual-only events of counterfactual cores
       Don't forget to put all the inhibition arrows that had been found and to compute relations for the factual core and each counterfactual parts.
   *)
+  log "Finished !" ;
   (* TODO *)
   ()
