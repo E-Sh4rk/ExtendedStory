@@ -32,7 +32,20 @@ let get_name model (i,step) default = match step with
   | Trace.Pert (name,inst,infos) -> name
   | _ -> default
 
-(* ----- Specific ----- *)
+let agents_tested tests =
+  let aggregate_agent acc test = match test with
+  | Instantiation.Is_Here a -> a::acc
+  | _ -> acc
+  in List.sort_uniq Agent.compare (List.fold_left aggregate_agent [] (List.flatten tests))
+
+let agents_tested_ts ts = match ts with
+  | Trace.Rule (_,inst,_) | Trace.Pert (_,inst,_)
+  -> agents_tested inst.Instantiation.tests
+  | Trace.Obs (_,tests,_) -> agents_tested tests
+  | Trace.Init _ -> []
+  | _ -> []
+
+(* ----- Specific types ----- *)
 
 type step = Causal_core_shared.step_id * Trace.step
 

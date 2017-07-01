@@ -23,7 +23,7 @@ cf_part : see below
 *)
 
 type cf_part = (step list) * ((int * int) list) * ((int * Grid.constr * int) list) * ((int * Grid.constr * int) list)
-(* (events * precedence arrows * direct causality arrows * inhibition arrows) *)
+(* (subtrace * precedence arrows * direct causality arrows * inhibition arrows) *)
 
 type inhibition_arrows_limitation = One | Max_one_per_event | All
 
