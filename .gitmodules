@@ -1,0 +1,6 @@
+[submodule "resimulation"]
+	path = resimulation
+	url = https://github.com/jonathan-laurent/kappa-counterfactuals.git
+[submodule "kaflow"]
+	path = kaflow
+	url = https://github.com/jonathan-laurent/KaFlow.git
