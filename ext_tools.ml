@@ -1,4 +1,6 @@
 
+open Trace.Simulation_info
+
 (* ----- Utils ----- *)
 
 let log s = print_string s ; print_newline () ; flush stdout
@@ -107,5 +109,14 @@ let get_event id trace =
   in aux trace 0
 
 let rec cut_after id trace = match trace with
+  | [] -> []
   | s::trace when get_id s = id -> [s]
   | s::trace -> s::(cut_after id trace)
+
+let core_to_subtrace trace core =
+  let rec aux i trace core = match core, trace with
+  | [], _ -> []
+  | index::core, s::trace when index=i -> s::(aux (i+1) trace core)
+  | core, s::trace -> aux (i+1) trace core
+  | _, _ -> assert false
+  in aux 0 trace core

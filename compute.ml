@@ -113,14 +113,6 @@ let find_inhibitive_events (grid,vi) tests before_index =
   let events = List.filter (fun opt -> opt <> None) events in
   List.map (fun (Some i) -> i) events
 
-let core_to_subtrace trace core =
-  let rec aux i trace core = match core, trace with
-  | [], _ -> []
-  | index::core, s::trace when index=i -> s::(aux (i+1) trace core)
-  | core, s::trace -> aux (i+1) trace core
-  | _, _ -> assert false
-  in aux 0 trace core
-
 let find_fc_inhibition_arrow f_trace (f_grid,f_vi) cf_trace (index1, constr, index2) =
   let ev2 = List.nth cf_trace index2 in
   let id1 = index_to_id cf_trace index1
@@ -152,7 +144,7 @@ let factual_events_of_trace trace =
    let rec aux core cf_parts events_in_factual =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
     log "Choosing interventions..." ;
-    let interventions = heuristic_choose_interventions () in
+    let interventions = heuristic_choose_interventions trace core in
     let block_pred = interventions_to_predicate interventions
     and stop_pred = stop_conditions_to_predicate [Event_has_happened eoi_id;Event_has_not_happened eoi_id] in
     (* Compute and sample counterfactual traces (resimulation stops when eid has happened/has been blocked) *)
