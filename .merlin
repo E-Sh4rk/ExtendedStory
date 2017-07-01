@@ -1,0 +1,9 @@
+FLG -w +a-4 -strict-formats -safe-string
+PKG KappaLib
+
+S ./
+S ./resimulation/
+S ./kaflow/
+B _build/
+B _build/resimulation
+B _build/kaflow

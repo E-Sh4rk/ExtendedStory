@@ -1,5 +1,6 @@
 open Interface
 open Ext_tools
+open Heuristics
 
 (*
 event IDs are :
@@ -35,11 +36,6 @@ type configuration =
   more_relations_with_factual : bool;
   show_entire_counterfactual_stories : bool;
 }
-
- (* For example :
-    - Block permanently in trace T every event that involve agents in the factual core and that are not in the factual causal core.
-    - Block permanently an event that is suspected to have an impact later.*)
-let heuristic_choose_interventions () : interventions = [] (* TODO *)
 
 let rec get_eoi model rule_name trace = match trace with
   | [] -> raise Not_found
