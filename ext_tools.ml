@@ -17,6 +17,27 @@ let rec cut_after_index i lst = match i, lst with
   | 0, s::lst -> [s]
   | n, s::lst -> s::(cut_after_index (n-1) lst)
 
+let list_included lst1 lst2 =
+  let lst1 = List.sort_uniq Pervasives.compare lst1
+  and lst2 = List.sort_uniq Pervasives.compare lst2 in
+  let rec aux lst1 lst2 = match lst1, lst2 with
+    | [], _ -> true
+    | _, [] -> false
+    | h1::tl1, h2::tl2 when h1=h2 -> aux tl1 tl2
+    | h1::tl1, h2::tl2 when h1<h2 -> false
+    | h1::tl1, h2::tl2 -> aux (h1::tl1) tl2
+  in aux lst1 lst2
+
+let intersection_not_empty lst1 lst2 =
+  let lst1 = List.sort_uniq Pervasives.compare lst1
+  and lst2 = List.sort_uniq Pervasives.compare lst2 in
+  let rec aux lst1 lst2 = match lst1, lst2 with
+    | [], _ | _, [] -> false
+    | e1::lst1, e2::lst2 when e1=e2 -> true
+    | e1::lst1, e2::lst2 when e1<e2 -> aux lst1 (e2::lst2)
+    | e1::lst1, e2::lst2 -> aux (e1::lst1) lst2
+  in aux lst1 lst2
+
 (* ----- Kappa ----- *)
 
 let srule_id_from_rule_id env rid = (Model.get_rule env rid).Primitives.syntactic_rule
@@ -36,7 +57,7 @@ let agents_tested tests =
   let aggregate_agent acc test = match test with
   | Instantiation.Is_Here a -> a::acc
   | _ -> acc
-  in List.sort_uniq Agent.compare (List.fold_left aggregate_agent [] (List.flatten tests))
+  in List.sort_uniq Pervasives.compare (List.fold_left aggregate_agent [] (List.flatten tests))
 
 let agents_tested_ts ts = match ts with
   | Trace.Rule (_,inst,_) | Trace.Pert (_,inst,_)
@@ -126,10 +147,8 @@ let rec cut_after id trace = match trace with
   | s::trace when get_id s = id -> [s]
   | s::trace -> s::(cut_after id trace)
 
-let core_to_subtrace trace core =
-  let rec aux i trace core = match core, trace with
+let rec core_to_subtrace trace core = match core, trace with
   | [], _ -> []
-  | index::core, s::trace when index=i -> s::(aux (i+1) trace core)
-  | core, s::trace -> aux (i+1) trace core
+  | index::core, s::trace when get_index s = index -> s::(core_to_subtrace trace core)
+  | core, s::trace -> core_to_subtrace trace core
   | _, _ -> assert false
-  in aux 0 trace core

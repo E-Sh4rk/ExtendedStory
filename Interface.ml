@@ -1,3 +1,4 @@
+open Ext_tools
 open Trace.Simulation_info
 open Resimulation
 open Trace
@@ -7,7 +8,7 @@ type step = Trace.step
 
 type blocked_event =
   | One_time of int (* Simulation_info.story_id *)
-  | Every_instance of int * Agent.t list option * float option * float option (* rule_id * agents_involved * from_time * until_time *)
+  | Every_instance of int * Agent.t list option * float option * float option (* rule_id * agents_involved (subset) * from_time * until_time *)
 
 type interventions = blocked_event list
 
@@ -32,23 +33,6 @@ let step_info step = match step with
   | Rule (_,_,i) | Pert (_,_,i) | Obs (_,_,i) -> Some i
   | _ -> None
 
-let agents_involved instantiation =
-  let aggregate_agent acc test = match test with
-  | Instantiation.Is_Here a -> a::acc
-  | _ -> acc
-  in List.sort_uniq Agent.compare (List.fold_left aggregate_agent [] (List.flatten instantiation.Instantiation.tests))
-
-let list_included lst1 lst2 =
-  let lst1 = List.sort_uniq compare lst1
-  and lst2 = List.sort_uniq compare lst2 in
-  let rec aux lst1 lst2 = match lst1, lst2 with
-    | [], _ -> true
-    | _, [] -> false
-    | h1::tl1, h2::tl2 when h1=h2 -> aux tl1 tl2
-    | h1::tl1, h2::tl2 when h1<h2 -> false
-    | h1::tl1, h2::tl2 -> aux (h1::tl1) tl2
-  in aux lst1 lst2
-
 let rec interventions_to_predicate interv step =
   match interv with
   | [] -> false
@@ -69,7 +53,7 @@ let rec interventions_to_predicate interv step =
       (
         match involved with
         | None -> true
-        | Some ags -> if list_included (agents_involved inst) ags then true else interventions_to_predicate lst step
+        | Some ags -> if list_included ags (agents_tested inst.Instantiation.tests) then true else interventions_to_predicate lst step
       )
     )
     | _ -> interventions_to_predicate lst step

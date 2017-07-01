@@ -144,7 +144,7 @@ let factual_events_of_trace trace =
    let rec aux core cf_parts events_in_factual =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
     log "Choosing interventions..." ;
-    let interventions = heuristic_choose_interventions trace core in
+    let interventions = heuristic_block_all trace core in
     let block_pred = interventions_to_predicate interventions
     and stop_pred = stop_conditions_to_predicate [Event_has_happened eoi_id;Event_has_not_happened eoi_id] in
     (* Compute and sample counterfactual traces (resimulation stops when eid has happened/has been blocked) *)
