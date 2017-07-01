@@ -5,8 +5,8 @@ open Grid
 
 let constr_var (Constr (x, _v)) = Var x
 
-let compute_precedence (t : Trace.t) (g : grid) (core : Causal_core.causal_core) =
-  let sub = Causal_core.core_events core in
+let compute_precedence (t : Trace.t) (g : grid) (core : step_id list) =
+  let sub = core in
   let varmod = Hashtbl.create (List.length sub) in
   sub |> List.iter (fun i ->
       let (_tests, mods) = g.(i) in

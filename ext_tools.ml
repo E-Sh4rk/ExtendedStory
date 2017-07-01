@@ -19,6 +19,12 @@ let rule_ast_name env rule_id =
     (Model.print_ast_rule ~env) 
     (srule_id_from_rule_id env rule_id)
 
+let get_name model (i,step) default = match step with
+  | Trace.Rule (rule_id,inst,infos) -> rule_ast_name model rule_id
+  | Trace.Obs (name,inst,infos) -> name
+  | Trace.Pert (name,inst,infos) -> name
+  | _ -> default
+
 (* ----- Specific ----- *)
 
 type step = Causal_core_shared.step_id * Trace.step
@@ -38,7 +44,7 @@ let set_id_of_ts id step = match step with
   | s -> s
 
 let get_id (i,s) = match s with
-  | Trace.Rule _ | Trace.Pert _ | Trace.Obs _ -> get_id_from_ts s
+  | Trace.Rule _ | Trace.Pert _ | Trace.Obs _ -> get_id_of_ts s
   | Trace.Init _ -> i
   | _ -> failwith "Invalid trace !"
 
@@ -53,13 +59,7 @@ let get_time_of_ts ts default = match ts with
   | Trace.Init _ -> 0.0
   | _ -> default
 
-let get_time (i,ts) default = get_time_of_ts ts
-
-let get_name model (i,step) default = match step with
-  | Trace.Rule (rule_id,inst,infos) -> rule_ast_name model rule_id
-  | Trace.Obs (name,inst,infos) -> name
-  | Trace.Pert (name,inst,infos) -> name
-  | _ -> default
+let get_time (i,ts) default = get_time_of_ts ts default
 
 let ts_to_step i ts = (i, ts)
 let step_to_ts (i,ts) = ts
