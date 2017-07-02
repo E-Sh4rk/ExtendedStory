@@ -91,6 +91,8 @@ let rec first_inhibited_event f_core ctrace = match ctrace with
   ) with Not_found -> first_inhibited_event f_core ctrace end
   | _::ctrace -> first_inhibited_event f_core ctrace
 
+(* TODO : case of factual inhibitive event, or more generally counterfactual with factual reactivator after.
+In that case, we have to modify the DESTINATION of the inhibitive arrow. *)
 let rec last_inhibitive_event_before index (grid,vi) constr =
   try
   (
