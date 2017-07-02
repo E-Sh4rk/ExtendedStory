@@ -134,11 +134,11 @@ let group_arrows_by_dest lst =
 
 let factual_events_of_arrows arrows =
   let involved = List.flatten (List.map (fun (e1,c,e2) -> [e1;e2]) arrows) in
-  List.filter (fun x -> x >= 0) involved
+  IntSet.of_list (List.filter (fun x -> x >= 0) involved)
 
 let factual_events_of_trace trace =
   let steps = List.filter (fun s -> get_id s >= 0) trace in
-  List.map get_id steps
+  IntSet.of_list (List.map get_id steps)
 
  let add_cf_parts model (trace,ttrace) (grid,vi) eoi_id config core =
    let rec aux core cf_parts events_in_factual =
@@ -198,16 +198,15 @@ let factual_events_of_trace trace =
       + other factual events of the counterfactual core if we want to have more links with the factual core at the end. *)
       log "Updating factual core..." ;
       let inhibitions = inhibitions_cf@inhibitions_fc in
-      let events_in_factual = (factual_events_of_arrows inhibitions) @ events_in_factual in
+      let events_in_factual = IntSet.union (factual_events_of_arrows inhibitions) events_in_factual in
       let events_in_factual = if config.more_relations_with_factual
-      then (factual_events_of_trace cf_subtrace) @ events_in_factual
+      then IntSet.union (factual_events_of_trace cf_subtrace) events_in_factual
       else events_in_factual in
-      let events_in_factual = List.sort_uniq compare events_in_factual in
-      let core = compute_causal_core model (grid,vi) events_in_factual in
+      let core = compute_causal_core model (grid,vi) (IntSet.elements events_in_factual) in
       let cf_parts = (cf_subtrace,precedences,activations,inhibitions)::cf_parts in
       aux core cf_parts events_in_factual
     )
-   in aux core [] [eoi_id]
+   in aux core [] (IntSet.singleton eoi_id)
 
 let compute_extended_story model ttrace rule_name config =
   log "Computing initial factual core..." ;

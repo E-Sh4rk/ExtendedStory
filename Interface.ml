@@ -8,7 +8,7 @@ type step = Trace.step
 
 type blocked_event =
   | One_time of int (* Simulation_info.story_id *)
-  | Every_instance of int * Agent.t list option * float option * float option (* rule_id * agents_involved (subset) * from_time * until_time *)
+  | Every_instance of int * ASet.t * float option * float option (* rule_id * agents_involved (subset) * from_time * until_time *)
 
 type interventions = blocked_event list
 
@@ -51,9 +51,7 @@ let rec interventions_to_predicate interv step =
       and to_time = match to_time with None -> info.story_time | Some t -> t in
       if rule_id <> id || info.story_time > to_time || info.story_time < from_time then interventions_to_predicate lst step else
       (
-        match involved with
-        | None -> true
-        | Some ags -> if list_included ags (agents_tested inst.Instantiation.tests) then true else interventions_to_predicate lst step
+        if ASet.subset involved (agents_tested inst.Instantiation.tests) then true else interventions_to_predicate lst step
       )
     )
     | _ -> interventions_to_predicate lst step

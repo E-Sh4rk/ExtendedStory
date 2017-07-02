@@ -3,6 +3,12 @@ open Trace.Simulation_info
 
 (* ----- Utils ----- *)
 
+module Int = struct
+  type t = int
+  let compare = Pervasives.compare
+end
+module IntSet = Set.Make(Int)
+
 let log s = print_string s ; print_newline () ; flush stdout
 
 let min_c c e1 e2 = match c e1 e2 with
@@ -17,28 +23,9 @@ let rec cut_after_index i lst = match i, lst with
   | 0, s::lst -> [s]
   | n, s::lst -> s::(cut_after_index (n-1) lst)
 
-let list_included lst1 lst2 =
-  let lst1 = List.sort_uniq Pervasives.compare lst1
-  and lst2 = List.sort_uniq Pervasives.compare lst2 in
-  let rec aux lst1 lst2 = match lst1, lst2 with
-    | [], _ -> true
-    | _, [] -> false
-    | h1::tl1, h2::tl2 when h1=h2 -> aux tl1 tl2
-    | h1::tl1, h2::tl2 when h1<h2 -> false
-    | h1::tl1, h2::tl2 -> aux (h1::tl1) tl2
-  in aux lst1 lst2
-
-let intersection_not_empty lst1 lst2 =
-  let lst1 = List.sort_uniq Pervasives.compare lst1
-  and lst2 = List.sort_uniq Pervasives.compare lst2 in
-  let rec aux lst1 lst2 = match lst1, lst2 with
-    | [], _ | _, [] -> false
-    | e1::lst1, e2::lst2 when e1=e2 -> true
-    | e1::lst1, e2::lst2 when e1<e2 -> aux lst1 (e2::lst2)
-    | e1::lst1, e2::lst2 -> aux (e1::lst1) lst2
-  in aux lst1 lst2
-
 (* ----- Kappa ----- *)
+
+module ASet = Set.Make(Agent)
 
 let srule_id_from_rule_id env rid = (Model.get_rule env rid).Primitives.syntactic_rule
 
@@ -55,16 +42,16 @@ let get_name model (i,step) default = match step with
 
 let agents_tested tests =
   let aggregate_agent acc test = match test with
-  | Instantiation.Is_Here a -> a::acc
+  | Instantiation.Is_Here a -> ASet.add a acc
   | _ -> acc
-  in List.sort_uniq Pervasives.compare (List.fold_left aggregate_agent [] (List.flatten tests))
+  in List.fold_left aggregate_agent ASet.empty (List.flatten tests)
 
 let agents_tested_ts ts = match ts with
   | Trace.Rule (_,inst,_) | Trace.Pert (_,inst,_)
   -> agents_tested inst.Instantiation.tests
   | Trace.Obs (_,tests,_) -> agents_tested tests
-  | Trace.Init _ -> []
-  | _ -> []
+  | Trace.Init _ -> ASet.empty
+  | _ -> ASet.empty
 
 (* ----- Specific types ----- *)
 
@@ -151,4 +138,10 @@ let rec core_to_subtrace trace core = match core, trace with
   | [], _ -> []
   | index::core, s::trace when get_index s = index -> s::(core_to_subtrace trace core)
   | core, s::trace -> core_to_subtrace trace core
+  | _, _ -> assert false
+
+  let rec core_to_subtrace_diff trace core = match trace, core with
+  | trace, [] -> trace
+  | s::trace, i::core when get_index s = i -> core_to_subtrace_diff trace core
+  | s::trace, core -> s::(core_to_subtrace_diff trace core)
   | _, _ -> assert false

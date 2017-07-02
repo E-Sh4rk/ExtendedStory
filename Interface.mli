@@ -1,12 +1,11 @@
-open Trace.Simulation_info
-open Trace
+open Ext_tools
 
 type step = Trace.step
 type counterfactual_step = Resimulation.step
 
 type blocked_event =
   | One_time of int (* Simulation_info.story_id *)
-  | Every_instance of int * Agent.t list option * float option * float option (* rule_id * agents_involved * from_time * until_time *)
+  | Every_instance of int * ASet.t * float option * float option (* rule_id * agents_involved (subset) * from_time * until_time *)
 
 type interventions = blocked_event list
 
