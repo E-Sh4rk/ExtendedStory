@@ -82,7 +82,7 @@ let set_ids_of_ctrace ctrace =
  
 let rec first_inhibited_event f_core ctrace = match ctrace with
   | [] -> failwith "First inhibited event not found !"
-  | (Resimulation.Factual_did_not_happen (blocked, ts))::ctrace when not blocked
+  | (Resimulation.Factual_did_not_happen (blocked, ts))::ctrace
   -> begin
   try (
     let id = get_id_of_ts ts in
@@ -91,8 +91,9 @@ let rec first_inhibited_event f_core ctrace = match ctrace with
   ) with Not_found -> first_inhibited_event f_core ctrace end
   | _::ctrace -> first_inhibited_event f_core ctrace
 
-(* TODO : case of factual inhibitive event, or more generally counterfactual with factual reactivator after.
-In that case, we have to modify the DESTINATION of the inhibitive arrow. *)
+(* TODO : for cf, case of factual inhibitive event, or more generally counterfactual with factual reactivator after.
+In that case, we have to modify the DESTINATION of the inhibitive arrow (initially inhibited_ts). *)
+(* TODO : same thing for fc inhibitions *)
 let rec last_inhibitive_event_before index (grid,vi) constr =
   try
   (
@@ -167,6 +168,8 @@ let factual_events_of_trace trace =
       (* Find the last events that have inhibited the first event of the causal core that has been inhibited :
       it is the last events that changed the value of a tested logical site from a good value to a wrong value. *)
       let inhibited_ts = first_inhibited_event core ctrace in
+      (* TODO : if dest of inhib arrow is manually blocked, we add it to the factual but not to the counterfactual core.
+      (if no core, we jump these parts)  *)
       let (inhibited_tests, _) = grid.(get_id_of_ts inhibited_ts) in
       let inhibited_time = get_time_of_ts inhibited_ts 0.0 in
       let inhibited_cf_index = nb_of_events_before_time cf_trace inhibited_time in
@@ -195,6 +198,7 @@ let factual_events_of_trace trace =
       let activations = List.map (fun (i1,c,i2) -> (index_to_id cf_trace i1,c,index_to_id cf_trace i2)) activations in
       let precedences = Precedence.transitive_reduction (Precedence.compute_precedence cf_ttrace cf_grid cf_core) in
       let precedences = List.map (fun (i1,i2) -> (index_to_id cf_trace i1,index_to_id cf_trace i2)) precedences in
+      (* TODO : Update the counterfactual core also. *)
       (* Update the factual core : compute a new factual causal core with all the previous added events + factual events with an inhibitive arrow
       + other factual events of the counterfactual core if we want to have more links with the factual core at the end. *)
       log "Updating factual core..." ;
