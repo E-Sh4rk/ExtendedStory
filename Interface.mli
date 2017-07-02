@@ -3,11 +3,13 @@ open Ext_tools
 type step = Trace.step
 type counterfactual_step = Resimulation.step
 
-type blocked_event =
-  | One_time of int (* Simulation_info.story_id *)
-  | Every_instance of int * ASet.t * float option * float option (* rule_id * agents_involved (subset) * from_time * until_time *)
+type blocked_f_event = int (*Simulation_info.story_id*)
 
-type interventions = blocked_event list
+type blocked_cf_event =
+  | Blocked_rule of int * ASet.t * int option * int option (* rule_id * agents_involved (subset) * after_f_event * before_f_event *)
+  | Blocked_pert of string * ASet.t * int option * int option (* pert_name * agents_involved (subset) * after_f_event * before_f_event *)
+
+type interventions = blocked_f_event list * blocked_cf_event list
 
 type stop_condition =
   | Time_limit of float
@@ -15,18 +17,19 @@ type stop_condition =
   | Event_has_not_happened of int (* Simulation_info.story_id *)
   | Rule_has_happened of int (* rule_id *)
   | Rule_has_not_happened of int (* rule_id *)
+  | Obs_has_happened of string
+  | Obs_has_not_happened of string
   | Any_event_not_happened
 
 type stop_conditions = stop_condition list
 
-type block_predicate = step -> bool
-
 type stop =
   | Continue | Stop_after | Stop_before
-type stop_predicate = counterfactual_step -> stop
 
-val interventions_to_predicate : interventions -> step -> bool
+val is_cf_event_blocked : interventions -> int -> step -> bool
 
-val stop_conditions_to_predicate : stop_conditions -> counterfactual_step -> stop
+val is_f_event_blocked : interventions -> step -> bool
 
-val resimulate : Model.t -> block_predicate -> stop_predicate -> Trace.t -> counterfactual_step list
+val must_stop : stop_conditions -> counterfactual_step -> stop
+
+val resimulate : Model.t -> interventions -> stop_conditions -> Trace.t -> counterfactual_step list

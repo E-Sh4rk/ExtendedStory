@@ -145,13 +145,12 @@ let factual_events_of_trace trace =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
     log "Choosing interventions..." ;
     let interventions = heuristic_block_all trace core in
-    let block_pred = interventions_to_predicate interventions
-    and stop_pred = stop_conditions_to_predicate [Event_has_happened eoi_id;Event_has_not_happened eoi_id] in
+    let scs = [Event_has_happened eoi_id;Event_has_not_happened eoi_id] in
     (* Compute and sample counterfactual traces (resimulation stops when eid has happened/has been blocked) *)
     (* Take one of the counterfactual traces that failed as witness
     (heuristic? random among the traces that block the eoi? smallest core? more blocked event?) *)
     log "Resimulating..." ;
-    let (nb_failed,ctrace) = resimulate_and_sample model config.nb_samples eoi_id block_pred stop_pred ttrace in
+    let (nb_failed,ctrace) = resimulate_and_sample model config.nb_samples eoi_id interventions scs ttrace in
     let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
     log ("Ratio : "^(string_of_float ratio)) ;
     if ratio >= config.threshold then (core, cf_parts)
