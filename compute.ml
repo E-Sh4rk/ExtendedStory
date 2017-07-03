@@ -2,6 +2,8 @@ open Interface
 open Ext_tools
 open Heuristics
 
+(* TODO : Remove all List.nth from Ext_tools (get_index) and Compute (convert to array?) *)
+
 (*
 event IDs are :
  >= 0 for factual events (match with indexes in the factual trace)
