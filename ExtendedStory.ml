@@ -38,7 +38,7 @@ let main () =
 
     let config =
     {
-      nb_samples   = 5;
+      nb_samples   = 10;
       threshold    = 0.5;
       follow_causal_core = true ;
       max_cf_inhibition_arrows = 1;

@@ -31,7 +31,7 @@ type configuration =
 {
   nb_samples   : int;
   threshold    : float;
-  follow_causal_core : bool ;
+  follow_causal_core : bool;
   max_cf_inhibition_arrows : int;
   max_fc_inhibition_arrows : int;
   more_relations_with_factual : bool;
@@ -40,7 +40,7 @@ type configuration =
 
 let rec get_eoi model rule_name trace = match trace with
   | [] -> raise Not_found
-  | s::trace when get_name model s "" = rule_name -> get_id s
+  | s::trace when get_name model s "" = rule_name -> s
   | s::trace -> get_eoi model rule_name trace
 
 let compute_trace_infos model ttrace last_eoi =
@@ -54,8 +54,8 @@ let compute_causal_core model (grid,var_infos) eois_indexes =
 let rec trace_succeed eoi_id ctrace =
   try begin match ctrace with
   | [] -> false
-  | (Resimulation.Factual_happened s)::ctrace when get_id_of_ts s = eoi_id -> true
-  | (Resimulation.Factual_did_not_happen (_,s))::ctrace when get_id_of_ts s = eoi_id -> false
+  | (Resimulation.Factual_happened s)::_ when get_id_of_ts s = eoi_id -> true
+  | (Resimulation.Factual_did_not_happen (_,s))::_ when get_id_of_ts s = eoi_id -> false
   | _::ctrace -> trace_succeed eoi_id ctrace
   end
   with Not_found -> trace_succeed eoi_id (List.tl ctrace)
@@ -66,9 +66,9 @@ let resimulate_and_sample model nb eoi_id block_pred stop_pred ttrace =
     | n ->
     let ctrace = resimulate model block_pred stop_pred ttrace in
     if trace_succeed eoi_id ctrace then
-    aux (nb-1) (nb_failed,wit)
+    aux (n-1) (nb_failed,wit)
     else
-    aux (nb-1) (nb_failed+1,Some ctrace)
+    aux (n-1) (nb_failed+1,Some ctrace)
   in aux nb (0,None)
 
 let last_counterfactual_id = ref 0
@@ -80,22 +80,11 @@ let set_ids_of_ctrace ctrace =
   (Resimulation.Counterfactual_happened (set_id_of_ts (!last_counterfactual_id) ts))::(aux ctrace)
   | cs::ctrace -> cs::(aux ctrace)
   in aux ctrace
- 
-let rec first_inhibited_event f_core ctrace = match ctrace with
-  | [] -> failwith "First inhibited event not found !"
-  | (Resimulation.Factual_did_not_happen (blocked, ts))::ctrace
-  -> begin
-  try (
-    let id = get_id_of_ts ts in
-    if id >= 0 && List.exists (fun i -> i=id) f_core
-    then ts else first_inhibited_event f_core ctrace
-  ) with Not_found -> first_inhibited_event f_core ctrace end
-  | _::ctrace -> first_inhibited_event f_core ctrace
 
 let rec last_inhibitive_event_before index (grid,vi) constr =
   try
   (
-    let Grid.Constr (var, value) = constr in
+    let Grid.Constr (var, _) = constr in
     let history = (Hashtbl.find vi (Grid.Var var)).Causal_core.modified_in_t in
     let last = History.last_before index history in
     match last with
@@ -112,7 +101,7 @@ let rec last_inhibitive_event_before index (grid,vi) constr =
 let rec first_activation_event_between index1 index2 (grid,vi) constr among =
   try
   (
-    let Grid.Constr (var, value) = constr in
+    let Grid.Constr (var, _) = constr in
     let history = (Hashtbl.find vi (Grid.Var var)).Causal_core.modified_in_t in
     let last = History.first_after index1 history in
     match last with
@@ -138,13 +127,17 @@ let activation_event_between index1 index2 (grid,vi) constr prefer_core =
   )
   else i
 
+type inhibition_reason =
+  | Inhibition of int * Grid.constr * int
+  | No_reason of int
+
 let find_inhibitive_arrows trace1 trace2 (grid1,vi1) (grid2,vi2) eoi1 follow_core =
   let rec rewind (src,c,dest) =
     let src_event = List.nth trace2 src in
     let index1_eq = (nb_of_events_before_time_large trace1 (get_time src_event 0.0))-1 in
     let act = activation_event_between index1_eq dest (grid1,vi1) c follow_core in
     match act with
-    | None -> [(src,c,dest)]
+    | None -> [Inhibition (src,c,dest)]
     | Some i -> aux src_event
   and aux dest_event =
     let (tests, _) = grid1.(get_index dest_event) in
@@ -152,7 +145,9 @@ let find_inhibitive_arrows trace1 trace2 (grid1,vi1) (grid2,vi2) eoi1 follow_cor
     let inh = List.map (fun c -> (last_inhibitive_event_before index2_eq (grid2,vi2) c, c)) tests in
     let inh = List.filter (fun (opt,c) -> opt <> None) inh in
     let inh = List.map (fun (Some src,c) -> (src,c,get_index dest_event)) inh in
-    List.flatten (List.map rewind inh)
+    match inh with
+    | [] -> [No_reason (get_index dest_event)]
+    | inh -> List.flatten (List.map rewind inh)
   in aux eoi1
 
 let factual_events_of_arrows arrows =
@@ -163,34 +158,30 @@ let factual_events_of_trace trace =
   let steps = List.filter (fun s -> get_id s >= 0) trace in
   IntSet.of_list (List.map get_id steps)
 
- let add_cf_parts model (trace,ttrace) (grid,vi) eoi_id config core =
+ let add_cf_parts model (trace,ttrace) (grid,vi) eoi config core =
    let rec aux core cf_parts events_in_factual =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
     log "Choosing interventions..." ;
     let interventions = heuristic_block_all trace core in
-    let scs = [Event_has_happened eoi_id;Event_has_not_happened eoi_id] in
+    let scs = [Event_has_happened (get_id eoi);Event_has_not_happened (get_id eoi)] in
     (* Compute and sample counterfactual traces (resimulation stops when eid has happened/has been blocked) *)
     (* Take one of the counterfactual traces that failed as witness
     (heuristic? random among the traces that block the eoi? smallest core? more blocked event?) *)
     log "Resimulating..." ;
-    let (nb_failed,ctrace) = resimulate_and_sample model config.nb_samples eoi_id interventions scs ttrace in
+    let (nb_failed,ctrace) = resimulate_and_sample model config.nb_samples (get_id eoi) interventions scs ttrace in
     let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
     log ("Ratio : "^(string_of_float ratio)) ;
     if ratio >= config.threshold then (core, cf_parts)
     else
     (
       log "Computing counterfactual experiment..." ;
-      (* Don't forget to set IDs for counterfactual events & conversions *)
+      (* Set IDs for counterfactual events & conversions *)
       let Some ctrace = ctrace in
       let ctrace = set_ids_of_ctrace ctrace in
       let cf_trace = ctrace_to_trace ctrace in
       let cf_ttrace = trace_to_ttrace cf_trace in
-      (* Find the last events that have inhibited the first event of the causal core that has been inhibited :
-      it is the last events that changed the value of a tested logical site from a good value to a wrong value. *)
-      (* TODO : with the new algorithm, inhibited_ts should be the eoi *)
-      let inhibited_ts = first_inhibited_event core ctrace in
-      (* TODO : if dest of inhib arrow is manually blocked, we add it to the factual but not to the counterfactual core.
-      (if no core, we jump these parts)  *)
+      (* Find the inhibitors of eoi in the cf trace *)
+      (* If there is no inhibitors, we add direct cause blocked to the core in order to avoid infinite loop *)
       let (inhibited_tests, _) = grid.(get_id_of_ts inhibited_ts) in
       let inhibited_time = get_time_of_ts inhibited_ts 0.0 in
       let inhibited_cf_index = nb_of_events_before_time cf_trace inhibited_time in
@@ -233,7 +224,7 @@ let factual_events_of_trace trace =
       let cf_parts = (cf_subtrace,precedences,activations,inhibitions)::cf_parts in
       aux core cf_parts events_in_factual
     )
-   in aux core [] (IntSet.singleton eoi_id)
+   in aux core [] (IntSet.singleton (get_index eoi))
 
 let compute_extended_story model ttrace rule_name config =
   log "Computing initial factual core..." ;
@@ -241,14 +232,14 @@ let compute_extended_story model ttrace rule_name config =
   let ttrace = List.mapi set_id_of_ts ttrace in
   let trace = ttrace_to_trace ttrace in
   (* Determining event of interest and truncate the traces *)
-  let eoi_id = get_eoi model rule_name trace in
-  let trace = cut_after_index eoi_id trace in
-  let ttrace = cut_after_index eoi_id ttrace in
+  let eoi = get_eoi model rule_name trace in
+  let trace = cut_after_index (get_index eoi) trace in
+  let ttrace = cut_after_index (get_index eoi) ttrace in
   (* Computing factual causal core *)
-  let infos = compute_trace_infos model ttrace eoi_id in
-  let core = compute_causal_core model infos [eoi_id] in
+  let infos = compute_trace_infos model ttrace (get_index eoi) in
+  let core = compute_causal_core model infos [(get_index eoi)] in
   (* Adding counterfactual parts *)
-  let (core, cf_parts) = add_cf_parts model (trace,ttrace) infos eoi_id config core in
+  let (core, cf_parts) = add_cf_parts model (trace,ttrace) infos eoi config core in
   (* Merge the factual causal core and all the counterfactual causal cores. Depending on the details wanted by the user, we can :
       - Merge everything by merging together nodes that represent the same event
       - Keep only counterfactual-only events of counterfactual cores
