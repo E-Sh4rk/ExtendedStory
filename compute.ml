@@ -33,7 +33,7 @@ type configuration =
   threshold    : float;
   follow_causal_core : bool;
   max_cf_inhibition_arrows : int;
-  max_fc_inhibition_arrows : int;
+  max_fc_inhibition_arrows_per_inhibator : int;
   more_relations_with_factual : bool;
   show_entire_counterfactual_stories : bool;
 }
@@ -188,9 +188,9 @@ let factual_events_of_trace trace =
       let (cf_grid,cf_vi) = compute_trace_infos model cf_ttrace ((List.length cf_ttrace)-1) in
       let follow_core = if config.follow_causal_core then Some core else None in
       let reasons = find_inhibitive_arrows trace cf_trace (grid,vi) (cf_grid,cf_vi) eoi follow_core in
-      let inhibitors_indexes = List.map (fun (Inhibition (s,c,d)) -> (s,c,d))
+      let inhibitors_cf_indexes = List.map (fun (Inhibition (s,c,d)) -> (s,c,d))
       (List.filter (fun r -> match r with No_reason _ -> false | Inhibition _ -> true) reasons) in
-      let (events_in_factual,cf_part) = if inhibitors_indexes = [] then
+      let (events_in_factual,cf_part) = if inhibitors_cf_indexes = [] then
       begin
         (* If there is no inhibitors (bad heuristic, direct cause blocked), we add direct cause blocked to the core in order to avoid infinite loop *)
         log "Bad heuristic (no inhibitor) ! Adding direct causes to core in order to avoid infinite loop..." ;
@@ -199,18 +199,24 @@ let factual_events_of_trace trace =
         (IntSet.union events_in_factual (IntSet.of_list direct_causes), None)
       end
       else begin
-        let inhibitors_indexes = choose_arrows inhibitors_indexes config.max_cf_inhibition_arrows in
-        let inhibitors_cf = List.map (fun (src,c,dest) -> index_to_id cf_trace src, c, dest) inhibitors_indexes in
-        (* Compute the causal core associated with these inhibitors.
-        Add this counterfactual causal core to the list and indicate where go the inhibitions arrows. *)
-        (******************** TODO ***********************)
-        let cf_core = compute_causal_core model (cf_grid,cf_vi) (List.map (fun (src,c,dest) -> src) inhibitors_indexes) in
+        let inhibitors_cf_indexes = choose_arrows inhibitors_cf_indexes config.max_cf_inhibition_arrows in
+        let inhibitors_cf = List.map (fun (src,c,dest) -> index_to_id cf_trace src, c, dest) inhibitors_cf_indexes in
+        (* Find the inhibitors of cf_eois in the factual trace, and eventually filter them *)
+        let cf_eois = List.map (fun (src,_,_) -> List.nth cf_trace src) inhibitors_cf_indexes in
+        let reasons = List.map (fun e -> find_inhibitive_arrows cf_trace trace (cf_grid,cf_vi) (grid,vi) e None) cf_eois in
+        let inhibitors_fc_indexes = List.map (fun reasons -> List.map (fun (Inhibition (s,c,d)) -> (s,c,d))
+        (List.filter (fun r -> match r with No_reason _ -> false | Inhibition _ -> true) reasons)) reasons in
+        let inhibitors_fc_indexes = List.map (fun inh -> choose_arrows inh config.max_fc_inhibition_arrows_per_inhibator) inhibitors_fc_indexes in
+        let inhibitors_fc_indexes = List.flatten inhibitors_fc_indexes in
+        let inhibitors_fc = List.map (fun (src,c,dest) -> src, c, index_to_id cf_trace dest) inhibitors_fc_indexes in
+        (* Compute the causal core associated with these inhibitors *)
+        (******************************TODO***********************************)
+        let cf_core = compute_causal_core model (cf_grid,cf_vi) (List.map (fun (src,_,_) -> src) inhibitors_cf_indexes) in
         let cf_subtrace = core_to_subtrace cf_trace cf_core in
         (* For each direct causal relation between a counterfactual-only event and a factual event of the counterfactual core,
         find the last events in the factual trace that prevent it (same method as above, depending on the config).
         Indicate in the counterfactual core the origin of these inhibition arrows. *)
         (* TODO : With the new algorithm, we should search inhibitive events of counterfactual eois. *)
-        let activations = Precedence.compute_strong_deps model cf_grid cf_core in
         let inhibitions_fc = List.map (find_fc_inhibition_arrow trace (grid,vi) cf_trace) activations in
         let inhibitions_fc = List.flatten inhibitions_fc in
         let inhibitions_fc = begin match config.fc_inhibition_arrows with
@@ -218,6 +224,7 @@ let factual_events_of_trace trace =
         | One -> [list_min_c (fun (a,c,b) (a',c',b') -> compare a a') inhibitions_fc]
         | Max_one_per_event -> List.map (fun x -> list_min_c (fun (a,c,b) (a',c',b') -> compare a a') x) (group_arrows_by_dest inhibitions_fc)
         end in
+        let activations = Precedence.compute_strong_deps model cf_grid cf_core in
         let activations = List.map (fun (i1,c,i2) -> (index_to_id cf_trace i1,c,index_to_id cf_trace i2)) activations in
         let precedences = Precedence.transitive_reduction (Precedence.compute_precedence cf_ttrace cf_grid cf_core) in
         let precedences = List.map (fun (i1,i2) -> (index_to_id cf_trace i1,index_to_id cf_trace i2)) precedences in

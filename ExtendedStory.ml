@@ -42,7 +42,7 @@ let main () =
       threshold    = 0.5;
       follow_causal_core = true ;
       max_cf_inhibition_arrows = 1;
-      max_fc_inhibition_arrows = 1;
+      max_fc_inhibition_arrows_per_inhibator = 1;
       more_relations_with_factual = false;
       show_entire_counterfactual_stories = false;
     } in
