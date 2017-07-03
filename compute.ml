@@ -151,7 +151,7 @@ let find_inhibitive_arrows trace1 trace2 (grid1,vi1) (grid2,vi2) eoi1 follow_cor
   in aux eoi1
 
 let choose_arrows arrows nb =
-  let arrows = List.sort (fun (s,c,d) (s',c',d') -> compare s s') in
+  let arrows = List.sort (fun (s,c,d) (s',c',d') -> compare s s') arrows in
   cut_after_index (nb-1) arrows
 
 let factual_events_of_trace trace =
