@@ -31,7 +31,9 @@ type configuration =
 {
   nb_samples   : int;
   threshold    : float;
+  (* TODO : put an int for the max nb instead *)
   allow_multiple_cf_inhibition_arrows : bool;
+  (* TODO : put an int for the max nb instead *)
   fc_inhibition_arrows : inhibition_arrows_limitation;
   more_relations_with_factual : bool;
   show_entire_counterfactual_stories : bool;
@@ -91,9 +93,8 @@ let rec first_inhibited_event f_core ctrace = match ctrace with
   ) with Not_found -> first_inhibited_event f_core ctrace end
   | _::ctrace -> first_inhibited_event f_core ctrace
 
-(* TODO : for cf, case of factual inhibitive event, or more generally counterfactual with factual reactivator after.
-In that case, we have to modify the DESTINATION of the inhibitive arrow (initially inhibited_ts). *)
-(* TODO : same thing for fc inhibitions *)
+(* TODO : we find the first inhibitive arrow. Then, if an event present in the other trace modify this constraint after but before the current dest,
+we change the current dest to it. We choose the first event after the inhibitive event OR eventually if possible, the first that is in the current story. *)
 let rec last_inhibitive_event_before index (grid,vi) constr =
   try
   (
@@ -167,6 +168,7 @@ let factual_events_of_trace trace =
       let cf_ttrace = trace_to_ttrace cf_trace in
       (* Find the last events that have inhibited the first event of the causal core that has been inhibited :
       it is the last events that changed the value of a tested logical site from a good value to a wrong value. *)
+      (* TODO : with the new algorithm, inhibited_ts should be the eoi *)
       let inhibited_ts = first_inhibited_event core ctrace in
       (* TODO : if dest of inhib arrow is manually blocked, we add it to the factual but not to the counterfactual core.
       (if no core, we jump these parts)  *)
@@ -187,6 +189,7 @@ let factual_events_of_trace trace =
       (* For each direct causal relation between a counterfactual-only event and a factual event of the counterfactual core,
       find the last events in the factual trace that prevent it (same method as above, depending on the config).
       Indicate in the counterfactual core the origin of these inhibition arrows. *)
+      (* TODO : With the new algorithm, we should search inhibitive events of counterfactual eois. *)
       let activations = Precedence.compute_strong_deps model cf_grid cf_core in
       let inhibitions_fc = List.map (find_fc_inhibition_arrow trace (grid,vi) cf_trace) activations in
       let inhibitions_fc = List.flatten inhibitions_fc in
