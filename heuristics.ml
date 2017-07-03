@@ -1,6 +1,8 @@
 open Ext_tools
 open Interface
 
+(* TO AVOID INFINITE LOOPS, HEURISTICS MUST NOT BLOCK EVENTS THAT ARE IN THE CORE ! *)
+
 (* Block in trace T every event that involve agents in the factual core and that are not in the factual causal core. *)
 let heuristic_block_all_persistent trace core : interventions =
   let agents_involved_in_trace trace =
