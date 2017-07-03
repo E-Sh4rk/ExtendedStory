@@ -109,10 +109,15 @@ let ctrace_to_trace ctrace =
 let index_to_id trace index =
   get_id (List.nth trace index)
 
-let rec nb_of_events_before_time trace time = match trace with
+let rec nb_of_events_before_time_strict trace time = match trace with
   | [] -> 0
   | s::trace when get_time s 0.0 >= time -> 0
-  | s::trace -> 1 + (nb_of_events_before_time trace time)
+  | s::trace -> 1 + (nb_of_events_before_time_strict trace time)
+
+let rec nb_of_events_before_time_large trace time = match trace with
+  | [] -> 0
+  | s::trace when get_time s 0.0 > time -> 0
+  | s::trace -> 1 + (nb_of_events_before_time_large trace time)
 
 let same_sign x y = match x, y with
 | n, m when n >= 0 && m < 0 -> false

@@ -27,17 +27,13 @@ cf_part : see below
 type cf_part = (step list) * ((int * int) list) * ((int * Grid.constr * int) list) * ((int * Grid.constr * int) list)
 (* (subtrace * precedence arrows * direct causality arrows * inhibition arrows) *)
 
-type inhibition_arrows_limitation = One | Max_one_per_event | All
-
 type configuration =
 {
-  (* TODO : add settings to prefer story events while ascending. *)
   nb_samples   : int;
   threshold    : float;
-  (* TODO : put an int for the max nb instead *)
-  allow_multiple_cf_inhibition_arrows : bool;
-  (* TODO : put an int for the max nb instead *)
-  fc_inhibition_arrows : inhibition_arrows_limitation;
+  follow_causal_core : bool ;
+  max_cf_inhibition_arrows : int;
+  max_fc_inhibition_arrows : int;
   more_relations_with_factual : bool;
   show_entire_counterfactual_stories : bool;
 }
@@ -96,8 +92,6 @@ let rec first_inhibited_event f_core ctrace = match ctrace with
   ) with Not_found -> first_inhibited_event f_core ctrace end
   | _::ctrace -> first_inhibited_event f_core ctrace
 
-(* TODO : we find the first inhibitive arrow. Then, if an event present in the other trace modify this constraint after but before the current dest,
-we change the current dest to it. We choose the first event after the inhibitive event OR eventually if possible, the first that is in the current story. *)
 let rec last_inhibitive_event_before index (grid,vi) constr =
   try
   (
@@ -106,38 +100,60 @@ let rec last_inhibitive_event_before index (grid,vi) constr =
     let last = History.last_before index history in
     match last with
     | None -> None
-    | Some (i,_) -> let (test,actions) = grid.(i) in
+    | Some (i,_) -> let (_,actions) = grid.(i) in
     if List.exists (fun c -> c=constr) actions
     then None (* It is an activation *)
     else (
       let prev = last_inhibitive_event_before i (grid,vi) constr in
-      if prev = None then Some (i,constr) else prev
+      if prev = None then Some i else prev
     )
   ) with Not_found -> None
 
-let find_inhibitive_events (grid,vi) tests before_index =
-  let events = List.map (last_inhibitive_event_before before_index (grid,vi)) tests in
-  let events = List.filter (fun opt -> opt <> None) events in
-  List.map (fun (Some i) -> i) events
+let rec first_activation_event_between index1 index2 (grid,vi) constr among =
+  try
+  (
+    let Grid.Constr (var, value) = constr in
+    let history = (Hashtbl.find vi (Grid.Var var)).Causal_core.modified_in_t in
+    let last = History.first_after index1 history in
+    match last with
+    | None -> None
+    | Some (i,_) when i >= index2 -> None
+    | Some (i,_) -> let (_,actions) = grid.(i) in
+    if List.exists (fun c -> c=constr) actions
+    then
+    ( match among with
+      | None -> Some i
+      | Some lst -> if List.exists (fun i' -> i=i') lst then Some i else first_activation_event_between i index2 (grid,vi) constr among
+    ) 
+    else first_activation_event_between i index2 (grid,vi) constr among
+  ) with Not_found -> None
 
-let find_fc_inhibition_arrow f_trace (f_grid,f_vi) cf_trace (index1, constr, index2) =
-  let ev2 = List.nth cf_trace index2 in
-  let id1 = index_to_id cf_trace index1
-  and id2 = get_id ev2 in
-  if id1 < 0 || id2 >= 0 then []
-  else (
-    let time = get_time ev2 0.0 in
-    let f_index = nb_of_events_before_time f_trace time in
-    List.map (fun (i,constr) -> (i,constr,id2)) (find_inhibitive_events (f_grid,f_vi) [constr] f_index)
+let activation_event_between index1 index2 (grid,vi) constr prefer_core =
+  let i = first_activation_event_between index1 index2 (grid,vi) constr None in
+  if prefer_core <> None && i <> None
+  then
+  (
+    let i' = first_activation_event_between index1 index2 (grid,vi) constr prefer_core in
+    if i' = None then i else i'
   )
+  else i
 
-let group_arrows_by_dest lst =
-  let rec aux lst = match lst with
-  | [] -> []
-  | (s,c,d)::(s',c',d')::lst when d=d' -> let fg::gs = (aux ((s',c',d')::lst)) in
-  ((s,c,d)::fg)::gs
-  | a::lst -> [a]::(aux lst) in
-  aux (List.sort (fun (src,c,dest) (src',c',dest') -> compare dest dest') lst)
+let find_inhibitive_arrows trace1 trace2 (grid1,vi1) (grid2,vi2) eoi1 follow_core =
+  let rec rewind (src,c,dest) =
+    let src_event = List.nth trace2 src in
+    let index1_eq = (nb_of_events_before_time_large trace1 (get_time src_event 0.0))-1 in
+    let act = activation_event_between index1_eq dest (grid1,vi1) c follow_core in
+    match act with
+    | None -> [(src,c,dest)]
+    | Some i -> aux src_event
+  and aux dest_event =
+    let (tests, _) = grid1.(get_index dest_event) in
+    let index2_eq = nb_of_events_before_time_strict trace2 (get_time dest_event 0.0) in
+    let inh = List.map (fun c -> (last_inhibitive_event_before index2_eq (grid2,vi2) c, c)) tests in
+    let inh = List.filter (fun (opt,c) -> opt <> None) inh in
+    let inh = List.map (fun (Some src,c) -> (src,c,get_index dest_event)) inh in
+    List.flatten (List.map rewind inh)
+  in aux eoi1
 
 let factual_events_of_arrows arrows =
   let involved = List.flatten (List.map (fun (e1,c,e2) -> [e1;e2]) arrows) in

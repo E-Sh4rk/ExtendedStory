@@ -40,10 +40,11 @@ let main () =
     {
       nb_samples   = 5;
       threshold    = 0.5;
-      allow_multiple_cf_inhibition_arrows = false;
-      fc_inhibition_arrows = One;
+      follow_causal_core = true ;
+      max_cf_inhibition_arrows = 1;
+      max_fc_inhibition_arrows = 1;
       more_relations_with_factual = false;
-      show_entire_counterfactual_stories = false
+      show_entire_counterfactual_stories = false;
     } in
     compute_extended_story env steps !rule_of_interest config
   )
