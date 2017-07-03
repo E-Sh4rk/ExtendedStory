@@ -2,7 +2,7 @@ open Interface
 open Ext_tools
 open Heuristics
 
-(* TODO : Remove all List.nth from Ext_tools (get_index) and Compute (convert to array?) *)
+(* TODO : Remove all List.nth and scans from Ext_tools and Compute (use arrays?) *)
 
 (*
 event IDs are :
