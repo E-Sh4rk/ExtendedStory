@@ -29,6 +29,7 @@ type inhibition_arrows_limitation = One | Max_one_per_event | All
 
 type configuration =
 {
+  (* TODO : add settings to prefer story events while ascending. *)
   nb_samples   : int;
   threshold    : float;
   (* TODO : put an int for the max nb instead *)
