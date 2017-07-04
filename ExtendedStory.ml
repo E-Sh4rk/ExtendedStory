@@ -1,5 +1,6 @@
 open Ext_tools
 open Compute
+open Ext_story_printer
 
 let file = ref ""
 let output_prefix = ref ""
@@ -43,10 +44,10 @@ let main () =
       precompute_cf_cores = true ;
       max_cf_inhibition_arrows = 1;
       max_fc_inhibition_arrows_per_inhibator = 1;
-      more_relations_with_factual = false;
-      show_entire_counterfactual_stories = false;
+      add_all_factual_events_involved_to_factual_core = false;
     } in
-    compute_extended_story env steps !rule_of_interest config
+    let es = compute_extended_story env steps !rule_of_interest config in
+    print_extended_story es
   )
 
 let () = main ()

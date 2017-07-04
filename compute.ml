@@ -29,8 +29,9 @@ prefix cf : countefactual
 cf_part : see below
 *)
 
-type cf_part = (step list) * ((int * int) list) * ((int * Grid.constr * int) list) * ((int * Grid.constr * int) list)
-(* (subtrace * precedence arrows * direct causality arrows * inhibition arrows) *)
+type cf_part = (step list) * ((int * Grid.constr * int) list)
+(* (subtrace * inhibition arrows) *)
+type extended_story = (step list) * (cf_part list)
 
 type configuration =
 {
@@ -39,8 +40,7 @@ type configuration =
   precompute_cf_cores : bool;
   max_cf_inhibition_arrows : int;
   max_fc_inhibition_arrows_per_inhibator : int;
-  more_relations_with_factual : bool;
-  show_entire_counterfactual_stories : bool;
+  add_all_factual_events_involved_to_factual_core : bool;
 }
 
 let rec get_eoi model rule_name trace = match trace with
@@ -231,17 +231,13 @@ let factual_events_of_trace trace =
         logs "Inhibition arrows found ! Computing new causal cores..." ;
         let cf_core = compute_causal_core model (cf_grid,cf_vi) (IntSet.elements cf_indexes_involved) in
         let cf_subtrace = core_to_subtrace cf_trace cf_core in
-        let activations = Precedence.compute_strong_deps model cf_grid cf_core in
-        let activations = List.map (fun (i1,c,i2) -> (index_to_id cf_trace i1,c,index_to_id cf_trace i2)) activations in
-        let precedences = Precedence.transitive_reduction (Precedence.compute_precedence cf_ttrace cf_grid cf_core) in
-        let precedences = List.map (fun (i1,i2) -> (index_to_id cf_trace i1,index_to_id cf_trace i2)) precedences in
         (* Retrieving events to add to the factual core : factual events with an inhibitive arrow
         + other factual events of the counterfactual core if we want to have more links with the factual core *)
         let events_in_factual = IntSet.union f_indexes_involved events_in_factual in
-        let events_in_factual = if config.more_relations_with_factual
+        let events_in_factual = if config.add_all_factual_events_involved_to_factual_core
         then IntSet.union (factual_events_of_trace cf_subtrace) events_in_factual
         else events_in_factual in
-        (events_in_factual, Some (cf_subtrace,precedences,activations,inhibitions))        
+        (events_in_factual, Some (cf_subtrace,inhibitions))        
       end
       in
       (* Update the factual core *)
@@ -251,7 +247,7 @@ let factual_events_of_trace trace =
     )
    in aux core [] (IntSet.singleton (get_index eoi))
 
-let compute_extended_story model ttrace rule_name config =
+let compute_extended_story model ttrace rule_name config : extended_story =
   logs "Computing initial factual core..." ;
   (* We have to set IDs in the trace and convert it *)
   let ttrace = List.mapi set_id_of_ts ttrace in
@@ -265,11 +261,5 @@ let compute_extended_story model ttrace rule_name config =
   let core = compute_causal_core model infos [(get_index eoi)] in
   (* Adding counterfactual parts *)
   let (core, cf_parts) = add_cf_parts model (trace,ttrace) infos eoi config core in
-  (* Merge the factual causal core and all the counterfactual causal cores. Depending on the details wanted by the user, we can :
-      - Merge everything by merging together nodes that represent the same event
-      - Keep only counterfactual-only events of counterfactual cores
-      Don't forget to put all the inhibition arrows that had been found and to compute relations for the factual core and each counterfactual parts.
-  *)
-  logs "Finished !" ;
-  (* TODO *)
-  ()
+  let subtrace = core_to_subtrace trace core in
+  logs "Extended story complete !" ; (subtrace, cf_parts)
