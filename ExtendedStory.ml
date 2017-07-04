@@ -40,7 +40,7 @@ let main () =
     {
       nb_samples   = 10;
       threshold    = 0.5;
-      follow_causal_core = true ;
+      precompute_cf_cores = true ;
       max_cf_inhibition_arrows = 1;
       max_fc_inhibition_arrows_per_inhibator = 1;
       more_relations_with_factual = false;

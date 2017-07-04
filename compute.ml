@@ -2,7 +2,12 @@ open Interface
 open Ext_tools
 open Heuristics
 
-(* TODO : Remove all List.nth and scans from Ext_tools and Compute (use arrays or trace explorer?) *)
+(* TODO : Remove all List.nth and scans from Ext_tools and Compute, don't load entirely the traces (use arrays and trace explorer).
+Optimisation idea :
+  - Use Trace Explorer
+  - Don't use fields story_* of steps to store IDs. Use only indexes during computation, and convert it to unique ID at the end.
+  For that, use a conversion array that match an index with and ID.
+  - Use also an array to match an index with a time in order to find an eq-index in log time. *)
 
 (*
 event IDs are :
@@ -31,7 +36,7 @@ type configuration =
 {
   nb_samples   : int;
   threshold    : float;
-  follow_causal_core : bool;
+  precompute_cf_cores : bool;
   max_cf_inhibition_arrows : int;
   max_fc_inhibition_arrows_per_inhibator : int;
   more_relations_with_factual : bool;
@@ -89,40 +94,49 @@ let rec last_inhibitive_event_before index (grid,vi) constr =
     let last = History.last_before index history in
     match last with
     | None -> None
-    | Some (i,_) -> let (_,actions) = grid.(i) in
+    | Some (i,_) -> let (tests,actions) = grid.(i) in
     if List.exists (fun c -> c=constr) actions
     then None (* It is an activation *)
     else (
-      let prev = last_inhibitive_event_before i (grid,vi) constr in
-      if prev = None then Some i else prev
+      if List.exists (fun c -> c=constr) tests
+      then Some i
+      else last_inhibitive_event_before i (grid,vi) constr
     )
   ) with Not_found -> None
 
-let rec first_activation_event_between index1 index2 (grid,vi) constr among =
+let rec last_between_among history among index1 index2 =
+  match History.last_before index2 history, among with
+  | None, _ -> None
+  | Some (n,_), _ when n <= index1 -> None
+  | Some (n,_), None -> Some n
+  | Some (n,_), Some among when List.exists (fun i -> i=n) among -> Some n
+  | Some (n,_), _ -> last_between_among history among index1 n
+
+let rec last_activation_event_between index1 index2 (grid,vi) constr among =
   try
   (
     let Grid.Constr (var, _) = constr in
     let history = (Hashtbl.find vi (Grid.Var var)).Causal_core.modified_in_t in
-    let last = History.first_after index1 history in
+    let last = last_between_among history among index1 index2 in
     match last with
     | None -> None
-    | Some (i,_) when i >= index2 -> None
-    | Some (i,_) -> let (_,actions) = grid.(i) in
+    | Some i -> let (tests,actions) = grid.(i) in
     if List.exists (fun c -> c=constr) actions
     then
-    ( match among with
-      | None -> Some i
-      | Some lst -> if List.exists (fun i' -> i=i') lst then Some i else first_activation_event_between i index2 (grid,vi) constr among
+    (
+      if List.exists (fun c -> c=constr) tests
+      then last_activation_event_between index1 i (grid,vi) constr among
+      else Some i 
     ) 
-    else first_activation_event_between i index2 (grid,vi) constr among
+    else None (* It is an inhibition *)
   ) with Not_found -> None
 
 let activation_event_between index1 index2 (grid,vi) constr prefer_core =
-  let i = first_activation_event_between index1 index2 (grid,vi) constr None in
+  let i = last_activation_event_between index1 index2 (grid,vi) constr None in
   if prefer_core <> None && i <> None
   then
   (
-    let i' = first_activation_event_between index1 index2 (grid,vi) constr prefer_core in
+    let i' = last_activation_event_between index1 index2 (grid,vi) constr prefer_core in
     if i' = None then i else i'
   )
   else i
@@ -151,7 +165,7 @@ let find_inhibitive_arrows trace1 trace2 (grid1,vi1) (grid2,vi2) eoi1 follow_cor
   in aux eoi1
 
 let choose_arrows arrows nb =
-  let arrows = List.sort (fun (s,c,d) (s',c',d') -> compare s s') arrows in
+  let arrows = List.sort (fun (s,_,_) (s',_,_) -> compare s s') arrows in
   cut_after_index (nb-1) arrows
 
 let factual_events_of_trace trace =
@@ -182,8 +196,7 @@ let factual_events_of_trace trace =
       let cf_ttrace = trace_to_ttrace cf_trace in
       (* Find the inhibitors of eoi in the cf trace, and eventually filter them *)
       let (cf_grid,cf_vi) = compute_trace_infos model cf_ttrace ((List.length cf_ttrace)-1) in
-      let follow_core = if config.follow_causal_core then Some core else None in
-      let reasons = find_inhibitive_arrows trace cf_trace (grid,vi) (cf_grid,cf_vi) eoi follow_core in
+      let reasons = find_inhibitive_arrows trace cf_trace (grid,vi) (cf_grid,cf_vi) eoi (Some core) in
       let inhibitors_cf_indexes = List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
       (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons) in
       let (events_in_factual,cf_part) = if inhibitors_cf_indexes = [] then
@@ -200,7 +213,10 @@ let factual_events_of_trace trace =
         (* Find the inhibitors of cf_eois in the factual trace, and eventually filter them *)
         let cf_eois_indexes = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_cf_indexes in
         let cf_eois = List.map (fun i -> List.nth cf_trace i) (IntSet.elements cf_eois_indexes) in
-        let reasons = List.map (fun e -> find_inhibitive_arrows cf_trace trace (cf_grid,cf_vi) (grid,vi) e None) cf_eois in
+        let cf_pre_core = if config.precompute_cf_cores
+        then Some (compute_causal_core model (cf_grid,cf_vi) (IntSet.elements cf_eois_indexes))
+        else None in
+        let reasons = List.map (fun e -> find_inhibitive_arrows cf_trace trace (cf_grid,cf_vi) (grid,vi) e cf_pre_core) cf_eois in
         let inhibitors_fc_indexes = List.map (fun reasons -> List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
         (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons)) reasons in
         let inhibitors_fc_indexes = List.map (fun inh -> choose_arrows inh config.max_fc_inhibition_arrows_per_inhibator) inhibitors_fc_indexes in
