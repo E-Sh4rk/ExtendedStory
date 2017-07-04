@@ -47,7 +47,20 @@ let main () =
       add_all_factual_events_involved_to_factual_core = false;
     } in
     let es = compute_extended_story env steps !rule_of_interest config in
-    print_extended_story es
+
+    let options =
+    { ranksep            = 1.0 ;
+      show_strong_deps   = true ;
+      strong_deps_labels = true ;
+      dump_grid          = true ;
+      show_event_ids     = true ;
+      font               = "CMU Serif" ;
+    } in
+
+    let oc = open_out (!output_prefix^".dot") in
+    let fmt = Format.formatter_of_out_channel oc in
+    print_extended_story env es Hiding_factual_events options fmt ;
+    close_out oc
   )
 
 let () = main ()

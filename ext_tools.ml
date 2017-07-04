@@ -22,6 +22,12 @@ let rec cut_after_index i lst = match i, lst with
   | 0, s::lst -> [s]
   | n, s::lst -> s::(cut_after_index (n-1) lst)
 
+let n_first_intergers n =
+  let rec aux n acc = match n with
+  | n when n < 0 -> acc
+  | n -> aux (n-1) (n::acc)
+  in aux (n-1) []
+
 (* ----- Kappa ----- *)
 
 module ASet = Set.Make(Agent)

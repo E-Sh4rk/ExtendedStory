@@ -7,7 +7,9 @@ Optimisation idea :
   - Use Trace Explorer
   - Don't use fields story_* of steps to store IDs. Use only indexes during computation, and convert it to unique ID at the end.
   For that, use a conversion array that match an index with and ID.
-  - Use also an array to match an index with a time in order to find an eq-index in log time. *)
+  - Use also an array to match an index with a time in order to find an eq-index in log time. Indeed, we should also use integers
+  to compare events (because two events can have the same time).
+  *)
 
 (*
 event IDs are :
