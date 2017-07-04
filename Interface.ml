@@ -67,7 +67,7 @@ let rec must_stop scs cstep =
   | (Time_limit t)::lst, Factual_did_not_happen (_, step)
   | (Time_limit t)::lst, Counterfactual_happened step ->
   ( if get_time_of_ts step 0.0 > t then Stop_before else must_stop lst cstep )
-  | (Any_event_not_happened)::lst, Factual_did_not_happen _ -> Stop_after
+  | (Any_event_not_happened)::_, Factual_did_not_happen _ -> Stop_after
   | (Event_has_not_happened ev)::lst, Factual_did_not_happen (_, step)
   | (Event_has_happened ev)::lst, Factual_happened step ->
   (

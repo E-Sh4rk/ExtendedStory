@@ -1,4 +1,3 @@
-
 open Trace.Simulation_info
 
 (* ----- Utils ----- *)
@@ -9,10 +8,10 @@ module Int = struct
 end
 module IntSet = Set.Make(Int)
 
-let log s = print_string s ; print_newline () ; flush stdout
+let logs s = print_string s ; print_newline () ; flush stdout
 
 let min_c c e1 e2 = match c e1 e2 with
-| -1 -> e1 | 0 -> e1 | 1 -> e2
+| -1 -> e1 | 0 -> e1 | 1 -> e2 | _ -> assert false
 let max_c c = min_c (fun a b -> - (c a b))
 
 let list_max_c c lst = List.fold_left (max_c c) (List.hd lst) lst

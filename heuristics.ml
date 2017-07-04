@@ -19,8 +19,9 @@ let heuristic_block_all_persistent trace core : interventions =
   let block_f_event (step, inv) = get_id step in
 
   let block_cf_events (step, inv) =
-    let Trace.Rule (rid,_,_) = step_to_ts step in
-    Blocked_rule (rid, inv, None, None) in
+    match step_to_ts step with
+    | Trace.Rule (rid,_,_) -> Blocked_rule (rid, inv, None, None)
+    | _ -> assert false in
 
   let subtrace = core_to_subtrace trace core in
   let agents_involved_in_core = agents_involved_in_trace subtrace in

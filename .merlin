@@ -2,8 +2,8 @@ FLG -w +a-4 -strict-formats -safe-string
 PKG KappaLib
 
 S ./
-S ./resimulation/src
-S ./kaflow/src
-B _build
-B _build/resimulation/src
-B _build/kaflow/src
+S ./resimulation/src/
+S ./kaflow/src/
+B _build/
+B _build/resimulation/src/
+B _build/kaflow/src/

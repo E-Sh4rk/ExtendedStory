@@ -28,13 +28,13 @@ let main () =
   (
     if !output_prefix = "" then output_prefix := "story" ;
 
-    log "Loading the trace file." ;
+    logs "Loading the trace file." ;
     let ch = open_in !file in
     let json = Yojson.Basic.from_channel ch in
     let () = close_in ch in
     let env = Model.of_yojson (Yojson.Basic.Util.member "env" json) in
     let steps = Trace.of_yojson (Yojson.Basic.Util.member "trace" json) in
-    log "Trace file loaded !" ;
+    logs "Trace file loaded !" ;
 
     let config =
     {
