@@ -29,9 +29,8 @@ prefix cf : countefactual
 cf_part : see below
 *)
 
-type cf_part = (step list) * ((int * Grid.constr * int) list)
-(* (subtrace * inhibition arrows) *)
-type extended_story = (step list) * (cf_part list)
+type cf_part = (step list) * ((int * Grid.constr * int) list) (* (subtrace, inhibition arrows) *)
+type extended_story = (step list) * (cf_part list) (* (subtrace, counterfactual parts) *)
 
 type configuration =
 {

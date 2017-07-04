@@ -1,5 +1,7 @@
 open Story_printer
 
+type merging_mode = Hiding_factual_events | Merging_factual_events | No_merging
+
 (* Different merging modes :
     - Show only counterfactual-only events of counterfactual parts (+annotations)
     - Show everything without merging (many nodes can correspond to the same factual event)

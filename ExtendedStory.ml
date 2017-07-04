@@ -1,5 +1,5 @@
 open Ext_tools
-open Compute
+open Ext_story
 open Ext_story_printer
 
 let file = ref ""
