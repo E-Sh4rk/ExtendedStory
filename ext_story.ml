@@ -38,6 +38,7 @@ type configuration =
 {
   nb_samples   : int;
   threshold    : float;
+  max_counterfactual_parts : int;
   precompute_cf_cores : bool;
   max_cf_inhibition_arrows : int;
   max_fc_inhibition_arrows_per_inhibator : int;
@@ -186,7 +187,7 @@ let factual_events_of_trace trace =
     let (nb_failed,ctrace) = resimulate_and_sample model config.nb_samples (get_id eoi) interventions scs ttrace in
     let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
     logs ("Ratio : "^(string_of_float ratio)) ;
-    if ratio >= config.threshold then (core, cf_parts)
+    if ratio >= config.threshold || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
     else
     (
       logs "Computing counterfactual experiment..." ;

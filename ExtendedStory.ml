@@ -41,6 +41,7 @@ let main () =
     {
       nb_samples   = 10;
       threshold    = 0.5;
+      max_counterfactual_parts = 2 ;
       precompute_cf_cores = true ;
       max_cf_inhibition_arrows = 1;
       max_fc_inhibition_arrows_per_inhibator = 1;
