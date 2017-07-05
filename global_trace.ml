@@ -52,7 +52,8 @@ let unidir_binary_search arr first pred =
     | i1, _ when not first && not (pred arr.(i1)) -> None
     | i1, _ when first && pred arr.(i1) -> Some i1
     | _, i2 when not first && pred arr.(i2) -> Some i2
-    | i1, i2 -> begin match (i1+i2)/2 with
+    | i1, i2 -> let i = if first then (i1+i2)/2 else (i1+i2+1)/2 in
+    begin match i with
       | i when pred arr.(i) -> if first then aux i1 i else aux i i2
       | i -> if first then aux (i+1) i2 else aux i1 (i-1)
     end
