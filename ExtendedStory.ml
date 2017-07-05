@@ -29,13 +29,9 @@ let main () =
   (
     if !output_prefix = "" then output_prefix := "story" ;
 
-    logs "Loading the trace file." ;
-    let ch = open_in !file in
-    let json = Yojson.Basic.from_channel ch in
-    let () = close_in ch in
-    let env = Model.of_yojson (Yojson.Basic.Util.member "env" json) in
-    let steps = Trace.of_yojson (Yojson.Basic.Util.member "trace" json) in
-    logs "Trace file loaded !" ;
+    logs "Loading the trace file..." ;
+    let te = Trace_explorer.load_from_file !file in
+    logs "Done." ;
 
     let config =
     {
@@ -47,7 +43,7 @@ let main () =
       max_fc_inhibition_arrows_per_inhibator = 1;
       add_all_factual_events_involved_to_factual_core = false;
     } in
-    let es = compute_extended_story env steps !rule_of_interest config in
+    let es = compute_extended_story te !rule_of_interest config in
 
     let options =
     { ranksep            = 1.0 ;

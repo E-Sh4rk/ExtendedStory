@@ -4,10 +4,10 @@ open Ext_tools
 
 type global_info = (int*int) array (* Associate an index with (id,order) *)
 type trace_info = Trace_explorer.t * Causal_core.var_info_table
-type global_trace = trace_info * global_info
+type t = trace_info * global_info
 
 type global_info_builder = ( (int*int) list ) * int (* (list,next_rt_index,next_order) *)
-type global_trace_builder = (Trace.step list) * global_info_builder
+type t_builder = (Trace.step list) * global_info_builder
 
 (* Not exported *)
 
@@ -77,15 +77,31 @@ let length (_,gi) = Array.length gi
 
 let get_trace_explorer ((te,_),_) =  te
 
+let next_f_id = ref 0
 let new_reference_trace te =
   Trace_explorer.Grid.build te ;
   let vi = Causal_core.init_var_infos te in
   let gi = Array.make ((Trace_explorer.last_step_id te) + 1) (0,0) in
   let gtr = ((te,vi),gi) in
   for i=0 to (Array.length gi) - 1 do
-    set_global_id gtr i i ;
-    set_order gtr i i
+    set_global_id gtr i (!next_f_id) ;
+    set_order gtr i i ;
+    next_f_id := !next_f_id + 1
   done ; gtr
+
+let new_reference_subtrace tr core =
+  let core = List.sort Pervasives.compare core in
+  let subtrace = List.map (get_step tr) core in
+  let nte = Trace_explorer.of_trace (Trace_explorer.model (get_trace_explorer tr)) subtrace in
+  Trace_explorer.Grid.build nte ;
+  let nvi = Causal_core.init_var_infos nte in
+  let core = Array.of_list core in
+  let ngi = Array.make (Array.length core) (0,0) in
+  let ntr = ((nte,nvi),ngi) in
+  for i=0 to (Array.length ngi) - 1 do
+    set_global_id ntr i (get_global_id tr core.(i)) ;
+    set_order ntr i (get_order tr core.(i))
+  done
 
 let new_counterfactual_trace_builder () = ([],([],0,0))
 
