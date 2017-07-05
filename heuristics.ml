@@ -13,8 +13,10 @@ let heuristic_block_all_persistent trace core : interventions =
     let step_agents_tested = agents_tested_ts (step_to_ts step) in
     (step, ASet.inter step_agents_tested agents_involved) in
 
-  let is_rule step = match step_to_ts step with
-    | Trace.Rule _ -> true | _ -> false in
+  let is_admissible_rule step =
+    match step_to_ts step with
+    | Trace.Rule _ -> List.forall (fun c -> c <> get_index step) core
+    | _ -> false in
 
   let block_f_event (step, inv) = get_id step in
 
@@ -25,8 +27,7 @@ let heuristic_block_all_persistent trace core : interventions =
 
   let subtrace = core_to_subtrace trace core in
   let agents_involved_in_core = agents_involved_in_trace subtrace in
-  let events_to_block = core_to_subtrace_diff trace core in
-  let events_to_block = List.filter is_rule events_to_block in
+  let events_to_block = List.filter is_admissible_rule events_to_block in
   let events_to_block = List.map (involved agents_involved_in_core) events_to_block in
   let events_to_block = List.filter (fun (s,inv) -> not (ASet.is_empty inv)) events_to_block in
   (List.map block_f_event events_to_block, List.map block_cf_events events_to_block)
