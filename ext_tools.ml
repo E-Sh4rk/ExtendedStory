@@ -57,3 +57,9 @@ let agents_tested_ts ts = match ts with
   | Trace.Obs (_,tests,_) -> agents_tested tests
   | Trace.Init _ -> ASet.empty
   | _ -> ASet.empty
+
+let get_time_ts ts default = match ts with
+  | Trace.Rule (_,_,infos) | Trace.Pert (_,_,infos) | Trace.Obs (_,_,infos)
+  -> infos.story_time
+  | Trace.Init _ -> 0.0
+  | _ -> default

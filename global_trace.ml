@@ -77,6 +77,8 @@ let length (_,gi) = Array.length gi
 
 let get_trace_explorer ((te,_),_) =  te
 
+let get_model tr = Trace_explorer.model (get_trace_explorer tr)
+
 let next_f_id = ref 0
 let new_reference_trace te =
   Trace_explorer.Grid.build te ;
@@ -92,7 +94,7 @@ let new_reference_trace te =
 let new_reference_subtrace tr core =
   let core = List.sort Pervasives.compare core in
   let subtrace = List.map (get_step tr) core in
-  let nte = Trace_explorer.of_trace (Trace_explorer.model (get_trace_explorer tr)) subtrace in
+  let nte = Trace_explorer.of_trace (get_model tr) subtrace in
   Trace_explorer.Grid.build nte ;
   let nvi = Causal_core.init_var_infos nte in
   let core = Array.of_list core in
@@ -121,7 +123,7 @@ let finalize_counterfactual_trace rtr (ctr,(cgi,ri,o)) =
   for i=ri to (length rtr) - 1 do
     set_order rtr i (o+i-ri)
   done ;
-  let te = Trace_explorer.of_trace (Trace_explorer.model (get_trace_explorer rtr)) (List.rev ctr) in
+  let te = Trace_explorer.of_trace (get_model rtr) (List.rev ctr) in
   Trace_explorer.Grid.build te ;
   let vi = Causal_core.init_var_infos te in
   ((te,vi), Array.of_list (List.rev cgi))

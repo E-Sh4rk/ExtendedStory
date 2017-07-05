@@ -32,4 +32,4 @@ val is_f_event_blocked : interventions -> step -> bool
 
 val must_stop : stop_conditions -> counterfactual_step -> stop
 
-val resimulate : Model.t -> interventions -> stop_conditions -> Trace.t -> counterfactual_step list
+val resimulate : interventions -> stop_conditions -> Global_trace.t -> Global_trace.t

@@ -7,6 +7,7 @@ val get_order : t -> int -> int
 val get_step : t -> int -> Trace.step
 val length : t -> int
 val get_trace_explorer : t -> Trace_explorer.t
+val get_model : t -> Model.t
 val new_reference_trace : Trace_explorer.t -> t
 val new_reference_subtrace : t -> int list -> t
 val new_counterfactual_trace_builder : unit -> t_builder

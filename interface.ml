@@ -94,22 +94,26 @@ let rec must_stop scs cstep =
   | _::lst, cstep -> must_stop lst cstep
 
 (* Do not handle counterfactual events blocking for now. Waiting for a resimulator update. *)
-let resimulate model interv scs trace =
+let resimulate interv scs trace =
   let last_time = ref 0.0 in
-  let next_event lst = match lst with
-  | [] -> None
-  | s::_ -> last_time := get_time_of_ts s (!last_time) ; Some (s, !last_time, is_f_event_blocked interv s)
+  let next_event i = match i with
+  | i when i >= Global_trace.length trace -> None
+  | i -> let s = Global_trace.get_step trace i in
+  last_time := get_time_ts s (!last_time) ; Some (s, !last_time, is_f_event_blocked interv s)
   in
-  let rec resimulate_step next_events state acc =
-    let (consummed, cstep_opt, state) = Resimulation.do_step (next_event next_events) state in
-    let next_events = if consummed then List.tl next_events else next_events in
+  let rec resimulate_step next_event_index state acc =
+    let (consummed, cstep_opt, state) = Resimulation.do_step (next_event next_event_index) state in
+    let next_event_index = if consummed then next_event_index + 1 else next_event_index in
     try
     (
       match cstep_opt with
-      | None -> resimulate_step next_events state acc
-      | Some s when must_stop scs s = Continue -> resimulate_step next_events state (s::acc)
-      | Some s when must_stop scs s = Stop_after -> s::acc
-      | Some s -> acc
+      | None -> resimulate_step next_event_index state acc
+      | Some s when must_stop scs s = Continue -> resimulate_step next_event_index state (Global_trace.add_counterfactual_step trace acc s)
+      | Some s when must_stop scs s = Stop_after -> Global_trace.add_counterfactual_step trace acc s
+      | Some _ -> acc
     )
     with Resimulation.End_of_resimulation -> acc
-  in List.rev (resimulate_step trace (Resimulation.init model (Random.get_state ())) [])
+  in
+  let builder = Global_trace.new_counterfactual_trace_builder () in
+  let builder = resimulate_step 0 (Resimulation.init (Global_trace.get_model trace) (Random.get_state ())) builder in
+  Global_trace.finalize_counterfactual_trace trace builder
