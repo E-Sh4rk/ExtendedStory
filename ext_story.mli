@@ -1,4 +1,3 @@
-open Ext_tools
 
 type cf_part = Global_trace.t * ((int * Grid.constr * int) list) (* (subtrace, inhibition arrows) *)
 type extended_story = Global_trace.t * (cf_part list) (* (subtrace, counterfactual parts) *)
@@ -14,4 +13,4 @@ type configuration =
   add_all_factual_events_involved_to_factual_core : bool;
 }
 
-val compute_extended_story : Trace_explorer.t -> string -> configuration -> extended_story
+val compute_extended_story : Trace_explorer.t -> int -> configuration -> extended_story

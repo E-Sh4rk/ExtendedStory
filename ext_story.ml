@@ -17,14 +17,6 @@ type configuration =
   add_all_factual_events_involved_to_factual_core : bool;
 }
 
-let get_eoi rule_name trace =
-  let model = get_model trace in
-  let rec aux i = match i with
-  | i when i >= length trace -> raise Not_found
-  | i when get_step_name model (get_step trace i) "" = rule_name -> i
-  | i -> aux (i+1) in
-  aux 0
-
 let compute_causal_core trace eois =
   let eois = List.sort_uniq Pervasives.compare eois in
   Causal_core.core_events (Causal_core.compute_causal_core (get_trace_explorer trace) (get_var_infos trace) eois)
@@ -132,7 +124,7 @@ let factual_events_of_trace trace =
   | i -> aux acc (i-1) in
   aux (IntSet.empty) ((length trace)-1)
 
- let add_cf_parts model (trace,ttrace) (grid,vi) eoi config core =
+ let add_cf_parts trace eoi core config =
    let rec aux core cf_parts events_in_factual =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
     logs "Choosing interventions..." ;
@@ -207,19 +199,12 @@ let factual_events_of_trace trace =
     )
    in aux core [] (IntSet.singleton (get_index eoi))
 
-let compute_extended_story model ttrace rule_name config : extended_story =
-  logs "Computing initial factual core..." ;
-  (* We have to set IDs in the trace and convert it *)
-  let ttrace = List.mapi set_id_of_ts ttrace in
-  let trace = ttrace_to_trace ttrace in
-  (* Determining event of interest and truncate the traces *)
-  let eoi = get_eoi model rule_name trace in
-  let trace = cut_after_index (get_index eoi) trace in
-  let ttrace = cut_after_index (get_index eoi) ttrace in
+let compute_extended_story trace eoi config : extended_story =
+  let trace = new_reference_trace trace in
   (* Computing factual causal core *)
-  let infos = compute_trace_infos model ttrace (get_index eoi) in
-  let core = compute_causal_core model infos [(get_index eoi)] in
+  logs "Computing initial factual core..." ;
+  let core = compute_causal_core trace [eoi] in
   (* Adding counterfactual parts *)
-  let (core, cf_parts) = add_cf_parts model (trace,ttrace) infos eoi config core in
-  let subtrace = core_to_subtrace trace core in
+  let (core, cf_parts) = add_cf_parts trace eoi core config in
+  let subtrace = subtrace_of trace core in
   logs "Extended story complete !" ; (subtrace, cf_parts)
