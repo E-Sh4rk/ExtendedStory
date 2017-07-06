@@ -130,9 +130,8 @@ let factual_events_of_trace trace =
     logs "Determining interventions (heuristic)..." ;
     let interventions = heuristic_block_all trace core in
     let scs = [Event_has_happened eoi;Event_has_not_happened eoi] in
-    (* Compute and sample counterfactual traces (resimulation stops when eid has happened/has been blocked) *)
-    (* Take one of the counterfactual traces that failed as witness
-    (heuristic? random among the traces that block the eoi? smallest core? more blocked event?) *)
+    (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
+    (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)
     logs "Resimulating..." ;
     let (nb_failed,cf_trace) = resimulate_and_sample trace config.nb_samples eoi interventions scs in
     let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
@@ -142,55 +141,53 @@ let factual_events_of_trace trace =
     (
       logs "Computing counterfactual experiment..." ;
       let cf_trace = match cf_trace with Some ctrace -> ctrace | None -> assert false in
-      (* Find the inhibitors of eoi in the cf trace, and eventually filter them *)
-      let (cf_grid,cf_vi) = compute_trace_infos model cf_ttrace ((List.length cf_ttrace)-1) in
-      let reasons = find_inhibitive_arrows trace cf_trace (grid,vi) (cf_grid,cf_vi) eoi (Some core) in
-      let inhibitors_cf_indexes = List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
+      (* Find the inhibitors of eoi in the cf trace, and eventually filter them. *)
+      let reasons = find_inhibitive_arrows trace cf_trace (Some (IntSet.of_list core)) eoi in
+      let inhibitors_cf = List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
       (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons) in
-      let (events_in_factual,cf_part) = if inhibitors_cf_indexes = [] then
+      let (cf_part, events_in_factual) = if inhibitors_cf = [] then
       begin
         (* If there is no inhibitors (bad heuristic, direct cause blocked), we add direct cause blocked to the core in order to avoid infinite loop *)
         logs "Bad heuristic (no inhibitor) ! Adding direct causes to causal core in order to avoid infinite loop..." ;
         let direct_causes = List.map (function No_reason i -> i | Inhibition _ -> assert false)
         (List.filter (function No_reason _ -> true | Inhibition _ -> false) reasons) in
-        (IntSet.union events_in_factual (IntSet.of_list direct_causes), None)
+        (None, IntSet.union events_in_factual (IntSet.of_list direct_causes))
       end
       else begin
-        let inhibitors_cf_indexes = choose_arrows inhibitors_cf_indexes config.max_cf_inhibition_arrows in
-        let inhibitors_cf = List.map (fun (src,c,dest) -> index_to_id cf_trace src, c, dest) inhibitors_cf_indexes in
+        let inhibitors_cf = choose_arrows inhibitors_cf config.max_cf_inhibition_arrows in
+        let inhibitors_cf_ids = List.map (fun (src,c,dest) -> get_global_id cf_trace src, c, get_global_id trace dest) inhibitors_cf in
         (* Find the inhibitors of cf_eois in the factual trace, and eventually filter them *)
-        let cf_eois_indexes = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_cf_indexes in
-        let cf_eois = List.map (fun i -> List.nth cf_trace i) (IntSet.elements cf_eois_indexes) in
+        let cf_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_cf in
         let cf_pre_core = if config.precompute_cf_cores
-        then Some (compute_causal_core model (cf_grid,cf_vi) (IntSet.elements cf_eois_indexes))
+        then Some (IntSet.of_list (compute_causal_core cf_trace (IntSet.elements cf_eois)))
         else None in
-        let reasons = List.map (fun e -> find_inhibitive_arrows cf_trace trace (cf_grid,cf_vi) (grid,vi) e cf_pre_core) cf_eois in
-        let inhibitors_fc_indexes = List.map (fun reasons -> List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
+        let reasons = List.map (fun e -> find_inhibitive_arrows cf_trace trace cf_pre_core e) (IntSet.elements cf_eois) in
+        let inhibitors_fc = List.map (fun reasons -> List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
         (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons)) reasons in
-        let inhibitors_fc_indexes = List.map (fun inh -> choose_arrows inh config.max_fc_inhibition_arrows_per_inhibator) inhibitors_fc_indexes in
-        let inhibitors_fc_indexes = List.flatten inhibitors_fc_indexes in
-        let inhibitors_fc = List.map (fun (src,c,dest) -> src, c, index_to_id cf_trace dest) inhibitors_fc_indexes in
+        let inhibitors_fc = List.map (fun inh -> choose_arrows inh config.max_fc_inhibition_arrows_per_inhibator) inhibitors_fc in
+        let inhibitors_fc = List.flatten inhibitors_fc in
+        let inhibitors_fc_ids = List.map (fun (src,c,dest) -> get_global_id trace src, c, get_global_id cf_trace dest) inhibitors_fc in
         (* Now we have all inhibition arrows *)
-        let inhibitions = inhibitors_fc@inhibitors_cf in
-        let cf_indexes_involved = IntSet.union cf_eois_indexes (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty inhibitors_fc_indexes) in
-        let f_indexes_involved = IntSet.union (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty inhibitors_cf_indexes)
-        (List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_fc_indexes) in
+        let inhibitions_ids = inhibitors_fc_ids@inhibitors_cf_ids in
+        let cf_involved = IntSet.union cf_eois (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty inhibitors_fc) in
+        let f_involved = IntSet.union (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty inhibitors_cf)
+        (List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_fc) in
         (* Compute the causal core associated with the cf events involved *)
         logs "Inhibition arrows found ! Computing new causal cores..." ;
-        let cf_core = compute_causal_core model (cf_grid,cf_vi) (IntSet.elements cf_indexes_involved) in
-        let cf_subtrace = core_to_subtrace cf_trace cf_core in
-        (* Retrieving events to add to the factual core : factual events with an inhibitive arrow
+        let cf_core = compute_causal_core cf_trace (IntSet.elements cf_involved) in
+        let cf_subtrace = subtrace_of cf_trace cf_core in
+        (* Retrieving events to add to the factual core : factual events with an inhibition arrow
         + other factual events of the counterfactual core if we want to have more links with the factual core *)
-        let events_in_factual = IntSet.union f_indexes_involved events_in_factual in
+        let events_in_factual = IntSet.union f_involved events_in_factual in
         let events_in_factual = if config.add_all_factual_events_involved_to_factual_core
         then IntSet.union (factual_events_of_trace cf_subtrace) events_in_factual
         else events_in_factual in
-        (events_in_factual, Some (cf_subtrace,inhibitions))        
+        (Some (cf_subtrace,inhibitions_ids), events_in_factual)        
       end
       in
       (* Update the factual core *)
-      let core = compute_causal_core model (grid,vi) (IntSet.elements events_in_factual) in
-      let cf_parts = match cf_part with None -> cf_parts | Some p -> p::cf_parts in
+      let core = compute_causal_core trace (IntSet.elements events_in_factual) in
+      let cf_parts = match cf_part with None -> cf_parts | Some cfp -> cfp::cf_parts in
       aux core cf_parts events_in_factual
     )
    in aux core [] (IntSet.singleton eoi)
