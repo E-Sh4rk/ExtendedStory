@@ -91,7 +91,7 @@ let new_reference_trace te =
     next_f_id := !next_f_id + 1
   done ; gtr
 
-let new_reference_subtrace tr core =
+let subtrace_of tr core =
   let core = List.sort_uniq Pervasives.compare core in
   let subtrace = List.map (get_step tr) core in
   let nte = Trace_explorer.of_trace (get_model tr) subtrace in
@@ -149,5 +149,7 @@ let search_last_before_order (_,gi) order =
 let get_tests tr index = Trace_explorer.Grid.tests index (get_trace_explorer tr)
 
 let get_actions tr index = Trace_explorer.Grid.actions index (get_trace_explorer tr)
+
+let get_var_infos ((_,vi),_) = vi
 
 let get_history ((_,vi),_) var = Causal_core.get_modifications_history var vi

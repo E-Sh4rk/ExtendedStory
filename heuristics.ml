@@ -27,8 +27,8 @@ let heuristic_block_all_persistent trace core : interventions =
     | Trace.Rule (rid,_,_) -> Blocked_rule (rid, inv, None, None)
     | _ -> assert false in
 
-  let agents_tested_in_core = List.fold_left (fun acc i -> ASet.union acc (agents_involved (get_tests trace i)))
-  ASet.empty core in
+  let agents_tested_in_core = List.fold_left
+  (fun acc i -> ASet.union acc (agents_involved (get_tests trace i))) ASet.empty core in
   let events_to_block = events_admissible [] ((length trace)-1) in
   let events_to_block = List.map (involved agents_tested_in_core) events_to_block in
   let events_to_block = List.filter (fun (i,inv) -> not (ASet.is_empty inv)) events_to_block in

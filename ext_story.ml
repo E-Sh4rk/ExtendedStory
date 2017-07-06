@@ -1,38 +1,10 @@
 open Interface
 open Ext_tools
 open Heuristics
+open Global_trace
 
-(* TODO : Remove all List.nth and scans from Ext_tools and Compute, don't load entirely the traces (use arrays and trace explorer).
-Optimisation idea :
-  - Use Trace Explorer
-  - Don't use fields story_* of steps to store IDs. Use only indexes during computation, and convert it to unique ID at the end.
-  For that, use a conversion array that match an index with and ID.
-  - Use also an array to match an index with a time in order to find an eq-index in log time. Indeed, we should also use integers
-  to compare events (because two events can have the same time).
-  *)
-
-(*
-event IDs are :
- >= 0 for factual events (match with indexes in the factual trace)
- < 0 for counterfactual-only events
-
-step : our step type with an index and an ID
-tstep : step of the Trace module, with only a partial ID
-cstep : counterfactual step of the resimulator, with only a partial ID
-trace : list of step
-ttrace : list of tstep
-ctrace : list of cstep
-core : list of indexes
-subtrace : same as a trace, but representss a core
-
-prefix f : factual (often omitted)
-prefix cf : countefactual
-
-cf_part : see below
-*)
-
-type cf_part = (step list) * ((int * Grid.constr * int) list) (* (subtrace, inhibition arrows) *)
-type extended_story = (step list) * (cf_part list) (* (subtrace, counterfactual parts) *)
+type cf_part = Global_trace.t * ((int * Grid.constr * int) list) (* (subtrace, inhibition arrows) *)
+type extended_story = Global_trace.t * (cf_part list) (* (subtrace, counterfactual parts) *)
 
 type configuration =
 {
@@ -45,100 +17,79 @@ type configuration =
   add_all_factual_events_involved_to_factual_core : bool;
 }
 
-let rec get_eoi model rule_name trace = match trace with
-  | [] -> raise Not_found
-  | s::_ when get_name model s "" = rule_name -> s
-  | _::trace -> get_eoi model rule_name trace
+let get_eoi rule_name trace =
+  let model = get_model trace in
+  let rec aux i = match i with
+  | i when i >= length trace -> raise Not_found
+  | i when get_step_name model (get_step trace i) "" = rule_name -> i
+  | i -> aux (i+1) in
+  aux 0
 
-let compute_trace_infos model ttrace last_eoi =
-  let (grid, _) = Grid.build_grid model ttrace in
-  let var_infos = Causal_core.var_infos_of_grid model grid last_eoi in
-  (grid,var_infos)
+let compute_causal_core trace eois =
+  let eois = List.sort_uniq Pervasives.compare eois in
+  Causal_core.core_events (Causal_core.compute_causal_core (get_trace_explorer trace) (get_var_infos trace) eois)
 
-let compute_causal_core model (grid,var_infos) eois_indexes =
-  Causal_core.core_events (Causal_core.causal_core_of_eois model grid var_infos eois_indexes)
+let cf_trace_succeed eoi_id cf_trace =
+  match search_global_id cf_trace eoi_id with
+  | None -> false
+  | Some _ -> true
 
-let rec trace_succeed eoi_id ctrace =
-  try begin match ctrace with
-  | [] -> false
-  | (Resimulation.Factual_happened s)::_ when get_id_of_ts s = eoi_id -> true
-  | (Resimulation.Factual_did_not_happen (_,s))::_ when get_id_of_ts s = eoi_id -> false
-  | _::ctrace -> trace_succeed eoi_id ctrace
-  end
-  with Not_found -> trace_succeed eoi_id (List.tl ctrace)
-
-let resimulate_and_sample model nb eoi_id block_pred stop_pred ttrace =
+let resimulate_and_sample nb eoi block_pred stop_pred trace =
   let rec aux nb (nb_failed,wit) = match nb with
     | 0 -> (nb_failed,wit)
     | n ->
-    let ctrace = resimulate model block_pred stop_pred ttrace in
-    if trace_succeed eoi_id ctrace then
+    let cf_trace = resimulate block_pred stop_pred trace in
+    if cf_trace_succeed (get_global_id trace eoi) cf_trace then
     aux (n-1) (nb_failed,wit)
     else
-    aux (n-1) (nb_failed+1,Some ctrace)
+    aux (n-1) (nb_failed+1,Some cf_trace)
   in aux nb (0,None)
 
-let last_counterfactual_id = ref 0
-let set_ids_of_ctrace ctrace =
-  let rec aux ctrace = match ctrace with
-  | [] -> []
-  | (Resimulation.Counterfactual_happened ts)::ctrace ->
-  last_counterfactual_id := (!last_counterfactual_id) - 1 ;
-  (Resimulation.Counterfactual_happened (set_id_of_ts (!last_counterfactual_id) ts))::(aux ctrace)
-  | cs::ctrace -> cs::(aux ctrace)
-  in aux ctrace
-
-let rec last_inhibitive_event_before index (grid,vi) constr =
-  try
-  (
-    let Grid.Constr (var, _) = constr in
-    let history = (Hashtbl.find vi (Grid.Var var)).Causal_core.modified_in_t in
-    let last = History.last_before index history in
-    match last with
-    | None -> None
-    | Some (i,_) -> let (tests,actions) = grid.(i) in
-    if List.exists (fun c -> c=constr) actions
-    then None (* It is an activation *)
-    else (
-      if List.exists (fun c -> c=constr) tests
-      then Some i
-      else last_inhibitive_event_before i (grid,vi) constr
-    )
-  ) with Not_found -> None
+let rec last_inhibitive_event_before trace index constr =
+  let Grid.Constr (var, _) = constr in
+  let history = get_history trace var in
+  let last = History.last_before index history in
+  match last with
+  | None -> None
+  | Some i ->
+  if List.exists (fun c -> c=constr) (get_actions trace i)
+  then None (* It is an activation *)
+  else (
+    if List.exists (fun c -> c=constr) (get_tests trace i)
+    then Some i
+    else last_inhibitive_event_before trace i constr
+  )
 
 let rec last_between_among history among index1 index2 =
   match History.last_before index2 history, among with
   | None, _ -> None
-  | Some (n,_), _ when n <= index1 -> None
-  | Some (n,_), None -> Some n
-  | Some (n,_), Some among when List.exists (fun i -> i=n) among -> Some n
-  | Some (n,_), _ -> last_between_among history among index1 n
+  | Some n, _ when n <= index1 -> None
+  | Some n, None -> Some n
+  | Some n, Some among when IntSet.mem n among -> Some n
+  | Some n, _ -> last_between_among history among index1 n
 
-let rec last_activation_event_between index1 index2 (grid,vi) constr among =
-  try
-  (
-    let Grid.Constr (var, _) = constr in
-    let history = (Hashtbl.find vi (Grid.Var var)).Causal_core.modified_in_t in
-    let last = last_between_among history among index1 index2 in
-    match last with
-    | None -> None
-    | Some i -> let (tests,actions) = grid.(i) in
-    if List.exists (fun c -> c=constr) actions
-    then
-    (
-      if List.exists (fun c -> c=constr) tests
-      then last_activation_event_between index1 i (grid,vi) constr among
-      else Some i 
-    ) 
-    else None (* It is an inhibition *)
-  ) with Not_found -> None
-
-let activation_event_between index1 index2 (grid,vi) constr prefer_core =
-  let i = last_activation_event_between index1 index2 (grid,vi) constr None in
-  if prefer_core <> None && i <> None
+let rec last_activation_event_between trace among index1 index2 constr =
+  let Grid.Constr (var, _) = constr in
+  let history = get_history trace var in
+  let last = last_between_among history among index1 index2 in
+  match last with
+  | None -> None
+  | Some i ->
+  if List.exists (fun c -> c=constr) (get_actions trace i)
   then
   (
-    let i' = last_activation_event_between index1 index2 (grid,vi) constr prefer_core in
+    if List.exists (fun c -> c=constr) (get_tests trace i)
+    then last_activation_event_between trace among index1 i constr
+    else Some i 
+  ) 
+  else None (* It is an inhibition *)
+
+let activation_event_between trace follow_core index1 index2 constr =
+  let i = last_activation_event_between trace None index1 index2 constr in
+  if follow_core <> None && i <> None
+  then
+  (
+    let i' = last_activation_event_between trace follow_core index1 index2 constr in
     if i' = None then i else i'
   )
   else i
@@ -147,22 +98,22 @@ type inhibition_reason =
   | Inhibition of int * Grid.constr * int
   | No_reason of int
 
-let find_inhibitive_arrows trace1 trace2 (grid1,vi1) (grid2,vi2) eoi1 follow_core =
+let find_inhibitive_arrows trace1 trace2 follow_core eoi1 =
   let rec rewind (src,c,dest) =
-    let src_event = List.nth trace2 src in
-    let index1_eq = (nb_of_events_before_time_large trace1 (get_time src_event 0.0))-1 in
-    let act = activation_event_between index1_eq dest (grid1,vi1) c follow_core in
+    let index1_eq = search_first_after_order trace1 (get_order trace2 src) in
+    let index1_eq = match index1_eq with None -> length trace1 | Some i -> i in
+    let act = activation_event_between trace1 follow_core (index1_eq-1) dest c in
     match act with
     | None -> [Inhibition (src,c,dest)]
-    | Some i -> aux (List.nth trace1 i)
-  and aux dest_event =
-    let (tests, _) = grid1.(get_index dest_event) in
-    let index2_eq = nb_of_events_before_time_strict trace2 (get_time dest_event 0.0) in
-    let inh = List.map (fun c -> (last_inhibitive_event_before index2_eq (grid2,vi2) c, c)) tests in
+    | Some i -> aux i
+  and aux dest =
+    let index2_eq = search_last_before_order trace2 (get_order trace1 dest) in
+    let index2_eq = match index2_eq with None -> -1 | Some i -> i in
+    let inh = List.map (fun c -> (last_inhibitive_event_before trace2 (index2_eq+1) c, c)) (get_tests trace1 eoi1) in
     let inh = List.filter (fun (opt,c) -> opt <> None) inh in
-    let inh = List.map (function (Some src,c) -> (src,c,get_index dest_event) | _ -> assert false) inh in
+    let inh = List.map (function (Some src,c) -> (src,c,dest) | _ -> assert false) inh in
     match inh with
-    | [] -> [No_reason (get_index dest_event)]
+    | [] -> [No_reason (dest)]
     | inh -> List.flatten (List.map rewind inh)
   in aux eoi1
 
@@ -175,8 +126,11 @@ let choose_arrows arrows nb =
   cut_after_index (nb-1) arrows
 
 let factual_events_of_trace trace =
-  let steps = List.filter (fun s -> get_id s >= 0) trace in
-  IntSet.of_list (List.map get_index steps)
+  let rec aux acc i = match i with
+  | i when i < 0 -> acc
+  | i when get_global_id trace i >= 0 -> aux (IntSet.add i acc) (i-1)
+  | i -> aux acc (i-1) in
+  aux (IntSet.empty) ((length trace)-1)
 
  let add_cf_parts model (trace,ttrace) (grid,vi) eoi config core =
    let rec aux core cf_parts events_in_factual =
