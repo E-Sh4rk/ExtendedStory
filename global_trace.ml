@@ -92,7 +92,7 @@ let new_reference_trace te =
   done ; gtr
 
 let new_reference_subtrace tr core =
-  let core = List.sort Pervasives.compare core in
+  let core = List.sort_uniq Pervasives.compare core in
   let subtrace = List.map (get_step tr) core in
   let nte = Trace_explorer.of_trace (get_model tr) subtrace in
   Trace_explorer.Grid.build nte ;
