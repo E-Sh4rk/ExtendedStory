@@ -1,4 +1,4 @@
-open Interface
+open Resimulator_interface
 open Ext_tools
 open Heuristics
 open Global_trace
@@ -26,7 +26,7 @@ let cf_trace_succeed eoi_id cf_trace =
   | None -> false
   | Some _ -> true
 
-let resimulate_and_sample nb eoi block_pred stop_pred trace =
+let resimulate_and_sample trace nb eoi block_pred stop_pred =
   let rec aux nb (nb_failed,wit) = match nb with
     | 0 -> (nb_failed,wit)
     | n ->
@@ -127,25 +127,21 @@ let factual_events_of_trace trace =
  let add_cf_parts trace eoi core config =
    let rec aux core cf_parts events_in_factual =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
-    logs "Choosing interventions..." ;
+    logs "Determining interventions (heuristic)..." ;
     let interventions = heuristic_block_all trace core in
-    let scs = [Event_has_happened (get_id eoi);Event_has_not_happened (get_id eoi)] in
+    let scs = [Event_has_happened eoi;Event_has_not_happened eoi] in
     (* Compute and sample counterfactual traces (resimulation stops when eid has happened/has been blocked) *)
     (* Take one of the counterfactual traces that failed as witness
     (heuristic? random among the traces that block the eoi? smallest core? more blocked event?) *)
     logs "Resimulating..." ;
-    let (nb_failed,ctrace) = resimulate_and_sample model config.nb_samples (get_id eoi) interventions scs ttrace in
+    let (nb_failed,cf_trace) = resimulate_and_sample trace config.nb_samples eoi interventions scs in
     let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
     logs ("Ratio : "^(string_of_float ratio)) ;
     if ratio >= config.threshold || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
     else
     (
       logs "Computing counterfactual experiment..." ;
-      (* Set IDs for counterfactual events & conversions *)
-      let ctrace = match ctrace with Some ctrace -> ctrace | None -> assert false in
-      let ctrace = set_ids_of_ctrace ctrace in
-      let cf_trace = ctrace_to_trace ctrace in
-      let cf_ttrace = trace_to_ttrace cf_trace in
+      let cf_trace = match cf_trace with Some ctrace -> ctrace | None -> assert false in
       (* Find the inhibitors of eoi in the cf trace, and eventually filter them *)
       let (cf_grid,cf_vi) = compute_trace_infos model cf_ttrace ((List.length cf_ttrace)-1) in
       let reasons = find_inhibitive_arrows trace cf_trace (grid,vi) (cf_grid,cf_vi) eoi (Some core) in
@@ -197,7 +193,7 @@ let factual_events_of_trace trace =
       let cf_parts = match cf_part with None -> cf_parts | Some p -> p::cf_parts in
       aux core cf_parts events_in_factual
     )
-   in aux core [] (IntSet.singleton (get_index eoi))
+   in aux core [] (IntSet.singleton eoi)
 
 let compute_extended_story trace eoi config : extended_story =
   let trace = new_reference_trace trace in

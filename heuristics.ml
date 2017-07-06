@@ -1,5 +1,5 @@
 open Ext_tools
-open Interface
+open Resimulator_interface
 open Global_trace
 
 (* TO AVOID INFINITE LOOPS, HEURISTICS MUST NOT BLOCK EVENTS THAT ARE IN THE CORE ! *)
