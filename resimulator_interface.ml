@@ -90,7 +90,6 @@ let indexes_involved b_cf_event = match b_cf_event with
   | Blocked_step (_,Some i1,Some i2) -> [i1;i2]
 
 let resimulate (b_f,b_cf) scs trace =
-  let b_cf = List.sort_uniq Pervasives.compare b_cf in
   let b_cf_indexes = List.flatten (List.map indexes_involved b_cf) in
   let b_cf_indexes = IntSet.of_list b_cf_indexes in
   let b_f = IntSet.of_list b_f in
