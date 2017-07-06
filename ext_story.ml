@@ -167,7 +167,11 @@ let find_inhibitive_arrows trace1 trace2 (grid1,vi1) (grid2,vi2) eoi1 follow_cor
   in aux eoi1
 
 let choose_arrows arrows nb =
-  let arrows = List.sort (fun (s,_,_) (s',_,_) -> compare s s') arrows in
+  let cmp (s,_,d) (s',_,d') = match Pervasives.compare s s' with
+  | 0 -> Pervasives.compare d d'
+  | n -> n
+  in
+  let arrows = List.sort cmp arrows in
   cut_after_index (nb-1) arrows
 
 let factual_events_of_trace trace =

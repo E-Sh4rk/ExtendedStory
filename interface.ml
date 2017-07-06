@@ -92,28 +92,21 @@ let indexes_involved b_cf_event = match b_cf_event with
 let resimulate (b_f,b_cf) scs trace =
   let b_cf = List.sort_uniq Pervasives.compare b_cf in
   let b_cf_indexes = List.flatten (List.map indexes_involved b_cf) in
-  let b_cf_indexes = List.sort_uniq Pervasives.compare b_cf_indexes in
-  let b_f = List.sort_uniq Pervasives.compare b_f in
-  let next_blocked = ref b_f in
+  let b_cf_indexes = IntSet.of_list b_cf_indexes in
+  let b_f = IntSet.of_list b_f in
   let next_event i = match i with
   | i when i >= Global_trace.length trace -> None
-  | i ->
-  let (blocked,next_b) = ( match !next_blocked with b::next_b when b=i -> (true,next_b) | next_b -> (false,next_b) ) in
-  next_blocked := next_b ; let s = Global_trace.get_step trace i in Some (s, blocked)
+  | i -> Some (Global_trace.get_step trace i, IntSet.mem i b_f)
   in
-  let last_next_index = ref 0 in
-  let next_b_cf_index = ref b_cf_indexes in
+  let last_next_index = ref (-1) in
   let rec resimulate_step next_event_index state acc =
-    let (state,nbcfi) = if !last_next_index <> next_event_index then
+    let state = if !last_next_index <> next_event_index then
     (
       last_next_index := next_event_index ;
-      match !next_b_cf_index with
-      | s::nbcfi when s=next_event_index-1 ->
-      (Resimulation.set_events_to_block (Some (is_cf_event_blocked b_cf (next_event_index-1))) state, nbcfi)
-      | nbcfi -> (state,nbcfi)
-    )
-    else (state,!next_b_cf_index) in
-    next_b_cf_index := nbcfi ;
+      if IntSet.mem (next_event_index-1) b_cf_indexes
+      then Resimulation.set_events_to_block (Some (is_cf_event_blocked b_cf (next_event_index-1))) state
+      else state
+    ) else state in
     let (consummed, cstep_opt, state) = Resimulation.do_step (next_event next_event_index) state in
     let next_event_index = if consummed then next_event_index + 1 else next_event_index in
     try
