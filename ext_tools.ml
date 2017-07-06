@@ -1,4 +1,5 @@
 open Trace.Simulation_info
+open Grid
 
 (* ----- Utils ----- *)
 
@@ -39,26 +40,24 @@ let rule_ast_name env rule_id =
     (Model.print_ast_rule ~env) 
     (srule_id_from_rule_id env rule_id)
 
-let get_name model (i,step) default = match step with
+let get_step_name model step default = match step with
   | Trace.Rule (rule_id,inst,infos) -> rule_ast_name model rule_id
   | Trace.Obs (name,inst,infos) -> name
   | Trace.Pert (name,inst,infos) -> name
   | _ -> default
 
-let agents_tested tests =
-  let aggregate_agent acc test = match test with
-  | Instantiation.Is_Here a -> ASet.add a acc
-  | _ -> acc
-  in List.fold_left aggregate_agent ASet.empty (List.flatten tests)
+let agents_involved (constrs:constr list) =
+  let aggregate_agent acc constr = match constr with
+  | Constr (Internal_state (agent,_), _) -> ASet.add agent acc
+  | Constr (Binding_state (agent,_), _) -> ASet.add agent acc
+  | Constr (Agent_existence agent, _) -> ASet.add agent acc
+  in List.fold_left aggregate_agent ASet.empty constrs
 
-let agents_tested_ts ts = match ts with
-  | Trace.Rule (_,inst,_) | Trace.Pert (_,inst,_)
-  -> agents_tested inst.Instantiation.tests
-  | Trace.Obs (_,tests,_) -> agents_tested tests
-  | Trace.Init _ -> ASet.empty
-  | _ -> ASet.empty
+let agents_modified actions =
+  let constrs = translate_actions actions
+  in agents_involved constrs
 
-let get_time_ts ts default = match ts with
+let get_time_of_step ts default = match ts with
   | Trace.Rule (_,_,infos) | Trace.Pert (_,_,infos) | Trace.Obs (_,_,infos)
   -> infos.story_time
   | Trace.Init _ -> 0.0

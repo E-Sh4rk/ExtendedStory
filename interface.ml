@@ -8,8 +8,8 @@ type counterfactual_step = Resimulation.step
 type blocked_f_event = int (* index *)
 
 type blocked_cf_event =
-  | Blocked_rule of int * ASet.t * int option * int option (* rule_id * agents_involved (subset) * after_f_event * before_f_event *)
-  | Blocked_pert of string * ASet.t * int option * int option (* pert_name * agents_involved (subset) * after_f_event * before_f_event *)
+  | Blocked_rule of int * ASet.t * int option * int option (* rule_id * agents_modified (subset) * after_f_event * before_f_event *)
+  | Blocked_step of ASet.t * int option * int option (* agents_modified (subset) * after_f_event * before_f_event *)
 
 type interventions = blocked_f_event list * blocked_cf_event list
 
@@ -28,29 +28,29 @@ type stop_conditions = stop_condition list
 type stop =
   | Continue | Stop_after | Stop_before
 
-let is_compatible (agents,after,before) last_f_event inst =
+let is_compatible (agents,after,before) last_f_event actions =
   let after = match after with None -> last_f_event | Some i -> i in
   let before = match before with None -> last_f_event+1 | Some i -> i in
   if last_f_event < after || last_f_event >= before then false
-  else ASet.subset agents (agents_tested inst.Instantiation.tests)
+  else ASet.subset agents (agents_modified actions)
 
-let rec is_cf_event_blocked (f,cf) last_f_event step =
+let is_cf_event_blocked cf last_f_event _ rid_opt actions =
+  let rec aux cf =
   match cf with
   | [] -> false
   | (Blocked_rule (rid,agents,after,before))::cf ->
   (
-    match step with
-    | Trace.Rule (rid', inst, _) -> if rid' = rid && is_compatible (agents,after,before) last_f_event inst
-    then true else is_cf_event_blocked (f,cf) last_f_event step
-    | _ -> is_cf_event_blocked (f,cf) last_f_event step
+    match rid_opt with
+    | Some rid' -> if rid' = rid && is_compatible (agents,after,before) last_f_event actions
+    then true else aux cf
+    | None -> aux cf
   )
-  | (Blocked_pert (name,agents,before,after))::cf ->
+  | (Blocked_step (agents,before,after))::cf ->
   (
-    match step with
-    | Trace.Pert (name', inst, _) -> if name' = name && is_compatible (agents,after,before) last_f_event inst
-    then true else is_cf_event_blocked (f,cf) last_f_event step
-    | _ -> is_cf_event_blocked (f,cf) last_f_event step
+    if is_compatible (agents,after,before) last_f_event actions
+    then true else aux cf
   )
+  in aux cf
 
 let rec must_stop scs last_f_event cstep =
   match scs, cstep with
@@ -81,19 +81,18 @@ let rec must_stop scs last_f_event cstep =
   )
   | _::lst, cstep -> must_stop lst last_f_event cstep
 
-(* Do not handle counterfactual events blocking for now. Waiting for a resimulator update. *)
 let resimulate (b_f,b_cf) scs trace =
   let b_f = List.sort_uniq Pervasives.compare b_f in
+  let b_cf = List.sort_uniq Pervasives.compare b_cf in
   let next_blocked = ref b_f in
-  let last_time = ref 0.0 in
   let next_event i = match i with
   | i when i >= Global_trace.length trace -> None
   | i ->
   let (blocked,next_b) = ( match !next_blocked with b::next_b when b=i -> (true,next_b) | next_b -> (false,next_b) ) in
-  next_blocked := next_b ; let s = Global_trace.get_step trace i in
-  last_time := get_time_ts s (!last_time) ; Some (s, !last_time, blocked)
+  next_blocked := next_b ; let s = Global_trace.get_step trace i in Some (s, blocked)
   in
   let rec resimulate_step next_event_index state acc =
+    let state = Resimulation.set_events_to_block (is_cf_event_blocked b_cf (next_event_index-1)) state in
     let (consummed, cstep_opt, state) = Resimulation.do_step (next_event next_event_index) state in
     let next_event_index = if consummed then next_event_index + 1 else next_event_index in
     try

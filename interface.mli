@@ -6,8 +6,8 @@ type counterfactual_step = Resimulation.step
 type blocked_f_event = int (* index *)
 
 type blocked_cf_event =
-  | Blocked_rule of int * ASet.t * int option * int option (* rule_id * agents_involved (subset) * after_f_event * before_f_event *)
-  | Blocked_pert of string * ASet.t * int option * int option (* pert_name * agents_involved (subset) * after_f_event * before_f_event *)
+  | Blocked_rule of int * ASet.t * int option * int option (* rule_id * agents_modified (subset) * after_f_event * before_f_event *)
+  | Blocked_step of ASet.t * int option * int option (* agents_modified (subset) * after_f_event * before_f_event *)
 
 type interventions = blocked_f_event list * blocked_cf_event list
 
@@ -26,7 +26,7 @@ type stop_conditions = stop_condition list
 type stop =
   | Continue | Stop_after | Stop_before
 
-val is_cf_event_blocked : interventions -> int -> step -> bool
+val is_cf_event_blocked : blocked_cf_event list -> int -> Model.t ->  int option -> (Instantiation.concrete Instantiation.action) list -> bool
 
 val must_stop : stop_conditions -> int -> counterfactual_step -> stop
 
