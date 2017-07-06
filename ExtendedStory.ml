@@ -56,7 +56,7 @@ let main () =
 
     let oc = open_out (!output_prefix^".dot") in
     let fmt = Format.formatter_of_out_channel oc in
-    print_extended_story env es Hiding_factual_events options fmt ;
+    print_extended_story es Hiding_factual_events options fmt ;
     close_out oc
   )
 

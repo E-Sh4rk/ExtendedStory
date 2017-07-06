@@ -6,7 +6,7 @@ type global_info = (int*int) array (* Associate an index with (id,order) *)
 type trace_info = Trace_explorer.t * Causal_core.var_info_table
 type t = trace_info * global_info
 
-type global_info_builder = ( (int*int) list ) * int (* (list,next_rt_index,next_order) *)
+type global_info_builder = ( (int*int) list ) * int * int (* (list,next_rt_index,next_order) *)
 type t_builder = (Trace.step list) * global_info_builder
 
 (* Not exported *)
@@ -103,7 +103,7 @@ let new_reference_subtrace tr core =
   for i=0 to (Array.length ngi) - 1 do
     set_global_id ntr i (get_global_id tr core.(i)) ;
     set_order ntr i (get_order tr core.(i))
-  done
+  done ; ntr
 
 let new_counterfactual_trace_builder () = ([],([],0,0))
 

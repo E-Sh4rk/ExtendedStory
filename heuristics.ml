@@ -7,13 +7,13 @@ open Global_trace
 (* Block in trace T every event that involve agents in the factual core and that are not in the factual causal core. *)
 let heuristic_block_all_persistent trace core : interventions =
 
-  let is_admissible_rule step = match step with
-    | Trace.Rule _ -> List.forall (fun c -> c <> get_index step) core
+  let is_admissible_rule step index = match step with
+    | Trace.Rule _ -> List.for_all (fun c -> c <> index) core
     | _ -> false in
 
   let rec events_admissible acc i = match i with
   | i when i < 0 -> acc
-  | i -> let s = get_step trace i in if is_admissible_rule s then events_admissible (i::acc) (i-1) else events_admissible acc (i-1)
+  | i -> let s = get_step trace i in if is_admissible_rule s i then events_admissible (i::acc) (i-1) else events_admissible acc (i-1)
   in
 
   let involved agents_tested i =

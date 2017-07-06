@@ -58,7 +58,7 @@ let rec must_stop scs last_f_event cstep =
   | (Time_limit t)::lst, Factual_happened step
   | (Time_limit t)::lst, Factual_did_not_happen (_, step)
   | (Time_limit t)::lst, Counterfactual_happened step ->
-  ( if get_time_ts step 0.0 > t then Stop_before else must_stop lst last_f_event cstep )
+  ( if get_time_of_step step 0.0 > t then Stop_before else must_stop lst last_f_event cstep )
   | (Any_event_not_happened)::_, Factual_did_not_happen _ -> Stop_after
   | (Event_has_not_happened ev)::lst, Factual_did_not_happen (_, _)
   | (Event_has_happened ev)::lst, Factual_happened _ ->
@@ -81,9 +81,19 @@ let rec must_stop scs last_f_event cstep =
   )
   | _::lst, cstep -> must_stop lst last_f_event cstep
 
+let indexes_involved b_cf_event = match b_cf_event with
+  | Blocked_rule (_,_,None,None) -> []
+  | Blocked_rule (_,_,Some i,None) | Blocked_rule (_,_,None,Some i) -> [i]
+  | Blocked_rule (_,_,Some i1,Some i2) -> [i1;i2]
+  | Blocked_step (_,None,None) -> []
+  | Blocked_step (_,Some i,None) | Blocked_step (_,None,Some i) -> [i]
+  | Blocked_step (_,Some i1,Some i2) -> [i1;i2]
+
 let resimulate (b_f,b_cf) scs trace =
-  let b_f = List.sort_uniq Pervasives.compare b_f in
   let b_cf = List.sort_uniq Pervasives.compare b_cf in
+  let b_cf_indexes = List.flatten (List.map indexes_involved b_cf) in
+  let b_cf_indexes = List.sort_uniq Pervasives.compare b_cf_indexes in
+  let b_f = List.sort_uniq Pervasives.compare b_f in
   let next_blocked = ref b_f in
   let next_event i = match i with
   | i when i >= Global_trace.length trace -> None
@@ -91,8 +101,19 @@ let resimulate (b_f,b_cf) scs trace =
   let (blocked,next_b) = ( match !next_blocked with b::next_b when b=i -> (true,next_b) | next_b -> (false,next_b) ) in
   next_blocked := next_b ; let s = Global_trace.get_step trace i in Some (s, blocked)
   in
+  let last_next_index = ref 0 in
+  let next_b_cf_index = ref b_cf_indexes in
   let rec resimulate_step next_event_index state acc =
-    let state = Resimulation.set_events_to_block (is_cf_event_blocked b_cf (next_event_index-1)) state in
+    let (state,nbcfi) = if !last_next_index <> next_event_index then
+    (
+      last_next_index := next_event_index ;
+      match !next_b_cf_index with
+      | s::nbcfi when s=next_event_index-1 ->
+      (Resimulation.set_events_to_block (Some (is_cf_event_blocked b_cf (next_event_index-1))) state, nbcfi)
+      | nbcfi -> (state,nbcfi)
+    )
+    else (state,!next_b_cf_index) in
+    next_b_cf_index := nbcfi ;
     let (consummed, cstep_opt, state) = Resimulation.do_step (next_event next_event_index) state in
     let next_event_index = if consummed then next_event_index + 1 else next_event_index in
     try

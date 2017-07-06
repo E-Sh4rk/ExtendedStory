@@ -1,4 +1,3 @@
-open Trace.Simulation_info
 open Grid
 
 (* ----- Utils ----- *)
@@ -41,9 +40,9 @@ let rule_ast_name env rule_id =
     (srule_id_from_rule_id env rule_id)
 
 let get_step_name model step default = match step with
-  | Trace.Rule (rule_id,inst,infos) -> rule_ast_name model rule_id
-  | Trace.Obs (name,inst,infos) -> name
-  | Trace.Pert (name,inst,infos) -> name
+  | Trace.Rule (rule_id,_,_) -> rule_ast_name model rule_id
+  | Trace.Obs (name,_,_) -> name
+  | Trace.Pert (name,_,_) -> name
   | _ -> default
 
 let agents_involved (constrs:constr list) =
@@ -59,6 +58,6 @@ let agents_modified actions =
 
 let get_time_of_step ts default = match ts with
   | Trace.Rule (_,_,infos) | Trace.Pert (_,_,infos) | Trace.Obs (_,_,infos)
-  -> infos.story_time
+  -> infos.Trace.Simulation_info.story_time
   | Trace.Init _ -> 0.0
   | _ -> default
