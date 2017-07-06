@@ -28,15 +28,6 @@ type stop_conditions = stop_condition list
 type stop =
   | Continue | Stop_after | Stop_before
 
-
-(*
-let rec is_f_event_blocked (f,cf) step = match f with
-  | [] -> false
-  | id::f ->
-  try if get_id_of_ts step = id then true else is_f_event_blocked (f,cf) step
-  with Not_found -> false
-*)
-
 let is_compatible (agents,after,before) last_f_event inst =
   let after = match after with None -> last_f_event | Some i -> i in
   let before = match before with None -> last_f_event+1 | Some i -> i in
