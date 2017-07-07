@@ -76,7 +76,7 @@ let print_factual_part fact id_to_gid (mode,options) fmt =
     ) ;
     fap
 
-let print_inh_arrow options env fmt (dest, constr, src) =
+let print_inh_arrow options env fmt (src, constr, dest) =
     let open Grid in
       Format.fprintf fmt "%d -> %d [%sfontsize=9, arrowhead=\"inv\"] @[<h>// %a@]@;" src dest
         (if options.Story_printer.strong_deps_labels then
