@@ -4,6 +4,9 @@ open Global_trace
 
 (* TO AVOID INFINITE LOOPS, HEURISTICS MUST NOT BLOCK EVENTS THAT ARE IN THE CORE ! *)
 
+(* TODO : improvement : block only events that have an action on a logical site NOT tested by a core event
+but on an agent tested by this core event, and only if it is the last event to modify this site before the core event. *)
+
 (* Block in trace T every event that involve agents in the factual core and that are not in the factual causal core. *)
 let heuristic_block_all_persistent trace core eoi : interventions =
 

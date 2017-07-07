@@ -126,5 +126,5 @@ let resimulate (b_f,b_cf) scs trace =
 
 let print fmt (f,cf) =
   List.iter (fun x -> Format.fprintf fmt "%d ; " x) f ;
-  if cf <> [] then Format.fprintf fmt " (+persistence)"
+  if cf <> [] then Format.fprintf fmt " (+cf)"
 
