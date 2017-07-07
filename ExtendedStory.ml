@@ -3,6 +3,7 @@ open Ext_story
 open Ext_story_printer
 
 let file = ref ""
+let max_stories = ref max_int
 let output_prefix = ref ""
 let rule_of_interest = ref ""
 let verbose = ref false
@@ -12,6 +13,8 @@ let options = [
    "prefix for the output file");
   ("-r", Arg.Set_string rule_of_interest,
    "rule of interest");
+  ("--max", Arg.Set_int max_stories,
+   "maximal number of stories to generate");
   ("--verbose", Arg.Set verbose,
    "print annotated dot files");
 ]
@@ -23,7 +26,7 @@ let get_first_eoi_after te rule_name i =
   | i when i > Trace_explorer.last_step_id te -> raise Not_found
   | i when get_step_name model (Trace_explorer.step i te) "" = rule_name -> i
   | i -> aux (i+1) in
-  aux i
+  aux (i+1)
 
 let main () =
   let () =
@@ -55,20 +58,23 @@ let main () =
       max_fc_inhibition_arrows_per_inhibator = 1;
       add_all_factual_events_involved_to_factual_core = false;
     } in
+    let eoi = ref (-1) in
     try
     (
-      logs "Searching first event of interest !" ;
-      let eoi = get_first_eoi_after te !rule_of_interest 0 in
-      let es = compute_extended_story te eoi config in
+      for _=1 to !max_stories do
+        logs "\nSearching next event of interest..." ;
+        eoi := get_first_eoi_after te !rule_of_interest (!eoi);
+        let es = compute_extended_story te (!eoi) config in
 
-      let oc = open_out (!output_prefix^".dot") in
-      let fmt = Format.formatter_of_out_channel oc in
-      let options = 
-            if !verbose then Story_printer.def_options_detailed
-            else Story_printer.def_options_simple in
-      print_extended_story es Hiding_factual_events options fmt ;
-      close_out oc
-    ) with Not_found -> logs "No event of interest found !"
+        let oc = open_out (!output_prefix^"_"^(string_of_int (!eoi))^".dot") in
+        let fmt = Format.formatter_of_out_channel oc in
+        let options = 
+              if !verbose then Story_printer.def_options_detailed
+              else Story_printer.def_options_simple in
+        print_extended_story es Hiding_factual_events options fmt ;
+        close_out oc
+      done
+    ) with Not_found -> logs "All events of interest processed !"
   )
 
 let () = main ()

@@ -131,4 +131,4 @@ let print_extended_story (fact,cps) mode options fmt =
     pr "@;" ;
     let _ = List.fold_left (fun (part_nb,fap) cp -> (part_nb+1,print_counterfactual_part cp part_nb fap id_to_gid (mode,options) fmt))
     (1,factual_already_printed) cps in
-    pr "@;}@]@." ; logs "Printing finished."
+    pr "@;}@]@."
