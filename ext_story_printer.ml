@@ -78,7 +78,7 @@ let print_factual_part fact id_to_gid (mode,options) fmt =
 
 let print_inh_arrow options env fmt (dest, constr, src) =
     let open Grid in
-      Format.fprintf fmt "%d -> %d [%sfontsize=9, shape=\"inv\"] @[<h>// %a@]@;" src dest
+      Format.fprintf fmt "%d -> %d [%sfontsize=9, arrowhead=\"inv\"] @[<h>// %a@]@;" src dest
         (if options.Story_printer.strong_deps_labels then
            let (Constr (x, _v)) = constr in
            Format.asprintf "label=\"%a\", "
