@@ -111,6 +111,7 @@ let last_cf_id = ref 0
 let add_counterfactual_step rtr (csteps,(cgi,ri,o)) cs =
   match cs with
   | Resimulation.Counterfactual_happened s ->
+  dbg ((string_of_int (!last_cf_id - 1))^": "^(get_step_name (get_model rtr) s "undefined")) ;
   last_cf_id := !last_cf_id - 1 ;
   (s::csteps,((!last_cf_id,o)::cgi,ri,o+1))
   | Resimulation.Factual_did_not_happen (_,_) ->
@@ -155,6 +156,8 @@ let get_var_infos ((_,vi),_) = vi
 let get_history ((_,vi),_) var = Causal_core.get_modifications_history var vi
 
 (* Printing functions *)
+let print_core tr fmt core =
+  List.iter (fun i -> Format.fprintf fmt "%d ; " (get_global_id tr i)) core
 let print fmt tr =
   let core = n_first_intergers (length tr) in
   List.iter (fun i -> Format.fprintf fmt "%d ; " (get_global_id tr i)) core

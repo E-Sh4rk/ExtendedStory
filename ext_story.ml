@@ -201,7 +201,7 @@ let compute_extended_story trace eoi config : extended_story =
   (* Computing factual causal core *)
   logs "Computing initial factual core..." ;
   let core = compute_causal_core trace [eoi] in
-  dbg (Format.asprintf "Core length : %d" (List.length core)) ;
+  dbg (Format.asprintf "Core : %a" (print_core trace) core) ;
   (* Adding counterfactual parts *)
   let (core, cf_parts) = add_cf_parts trace eoi core config in
   let subtrace = subtrace_of trace core in

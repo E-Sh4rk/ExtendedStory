@@ -82,11 +82,11 @@ let rec must_stop scs last_f_event cstep =
   | _::lst, cstep -> must_stop lst last_f_event cstep
 
 let indexes_involved b_cf_event = match b_cf_event with
-  | Blocked_rule (_,_,None,None) -> []
-  | Blocked_rule (_,_,Some i,None) | Blocked_rule (_,_,None,Some i) -> [i]
+  | Blocked_rule (_,_,None,None) -> [0]
+  | Blocked_rule (_,_,Some i,None) | Blocked_rule (_,_,None,Some i) -> [0;i]
   | Blocked_rule (_,_,Some i1,Some i2) -> [i1;i2]
-  | Blocked_step (_,None,None) -> []
-  | Blocked_step (_,Some i,None) | Blocked_step (_,None,Some i) -> [i]
+  | Blocked_step (_,None,None) -> [0]
+  | Blocked_step (_,Some i,None) | Blocked_step (_,None,Some i) -> [0;i]
   | Blocked_step (_,Some i1,Some i2) -> [i1;i2]
 
 let random_state = Random.State.make_self_init ()
