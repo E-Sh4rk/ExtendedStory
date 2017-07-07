@@ -20,8 +20,8 @@ let choose_color options tr i _ =
     | Story_printer.Time ->
         let maxT = max_time (Global_trace.get_trace_explorer tr) in
         let t = get_time_of_step (Global_trace.get_step tr i) 0.0 in
-        let (r,v,b) = (0., 0., (1.0 -. 0.4 *. t /. maxT)) in
-        if Global_trace.get_global_id tr i < 0 then (b,v,r) else (r,v,b)
+        let (h,s,v) = (0., 0., (1.0 -. 0.4 *. t /. maxT)) in
+        if Global_trace.get_global_id tr i < 0 then (0.5,0.5,v) else (h,s,v)
 
 let compute_precedence subtrace =
     let core = n_first_intergers (Global_trace.length subtrace) in

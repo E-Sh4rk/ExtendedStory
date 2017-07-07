@@ -112,7 +112,7 @@ let add_counterfactual_step rtr (csteps,(cgi,ri,o)) cs =
   match cs with
   | Resimulation.Counterfactual_happened s ->
   last_cf_id := !last_cf_id - 1 ;
-  (s::csteps,((-(!last_cf_id),o)::cgi,ri,o+1))
+  (s::csteps,((!last_cf_id,o)::cgi,ri,o+1))
   | Resimulation.Factual_did_not_happen (_,_) ->
   set_order rtr ri o ; (csteps,(cgi,ri+1,o+1))
   | Resimulation.Factual_happened s ->
