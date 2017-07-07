@@ -38,14 +38,14 @@ let print_factual_event trace part_nb index already_printed id_to_gid (mode,opti
     if (not (IntSet.mem id already_printed) || mode = No_merging) && (mode <> Hiding_factual_events || part_nb = 0) then
     (
         let gid = id_to_gid part_nb id in
-        Story_printer.print_event options (Global_trace.get_trace_explorer trace) (choose_color options trace) fmt gid (index,index) ;
+        Story_printer.print_event options (Global_trace.get_trace_explorer trace) (choose_color options trace) fmt gid (string_of_int id) (index,index) ;
         IntSet.add id already_printed
     ) else already_printed
 
 let print_cf_event trace part_nb index id_to_gid (mode,options) fmt =
     let id = Global_trace.get_global_id trace index in
     let gid = id_to_gid part_nb id in
-    Story_printer.print_event options (Global_trace.get_trace_explorer trace) (choose_color options trace) fmt gid (index,index)
+    Story_printer.print_event options (Global_trace.get_trace_explorer trace) (choose_color options trace) fmt gid (string_of_int id) (index,index)
 
 let print_event trace part_nb index fap id_to_gid (mode,options) fmt =
     let id = Global_trace.get_global_id trace index in
@@ -78,7 +78,7 @@ let print_factual_part fact id_to_gid (mode,options) fmt =
 
 let print_inh_arrow options env fmt (src, constr, dest) =
     let open Grid in
-      Format.fprintf fmt "%d -> %d [%sfontsize=9, arrowhead=\"tee\"] @[<h>// %a@]@;" src dest
+      Format.fprintf fmt "%d -> %d [%sfontsize=9, arrowhead=\"tee\", color=\"red\"] @[<h>// %a@]@;" src dest
         (if options.Story_printer.strong_deps_labels then
            let (Constr (x, _v)) = constr in
            Format.asprintf "label=\"%a\", "
