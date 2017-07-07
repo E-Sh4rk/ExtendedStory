@@ -14,10 +14,10 @@ let id_to_gid mode fact part_nb id =
     if id < 0 || mode <> No_merging then id else
     (Global_trace.length fact)*part_nb + id
 
-let choose_color options tr i dummy =
+let choose_color options tr i _ =
     match options.Story_printer.nodes_coloring with
-    | Build_order -> failwith "Build order coloring not implemented."
-    | Time ->
+    | Story_printer.Build_order -> failwith "Build order coloring not implemented."
+    | Story_printer.Time ->
         let maxT = max_time (Global_trace.get_trace_explorer tr) in
         let t = get_time_of_step (Global_trace.get_step tr i) 0.0 in
         let (r,v,b) = (0., 0., (1.0 -. 0.4 *. t /. maxT)) in
@@ -66,6 +66,10 @@ let print_factual_part fact id_to_gid (mode,options) fmt =
     let core = n_first_intergers (Global_trace.length fact) in
     List.map (fun i -> Global_trace.get_global_id fact i) core
 
+let print_counterfactual_part cp part_nb fap id_to_gid (mode,options) fmt =
+
+    fap
+
 let print_extended_story (fact,cps) mode options fmt =
     let pr x = Format.fprintf fmt x in
     let id_to_gid = id_to_gid mode fact in
@@ -78,4 +82,7 @@ let print_extended_story (fact,cps) mode options fmt =
     pr "@;" ;
 
     let factual_already_printed = print_factual_part fact id_to_gid (mode,options) fmt in
-    (* TODO *) ()
+    pr "@;" ;
+    let _ = List.fold_left (fun (part_nb,fap) cp -> (part_nb+1,print_counterfactual_part cp part_nb fap id_to_gid (mode,options) fmt))
+    (1,factual_already_printed) cps in
+    pr "@;" ; logs "Printing finished."
