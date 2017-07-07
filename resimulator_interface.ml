@@ -89,6 +89,8 @@ let indexes_involved b_cf_event = match b_cf_event with
   | Blocked_step (_,Some i,None) | Blocked_step (_,None,Some i) -> [i]
   | Blocked_step (_,Some i1,Some i2) -> [i1;i2]
 
+let random_state = Random.State.make_self_init ()
+
 let resimulate (b_f,b_cf) scs trace =
   let b_cf_indexes = List.flatten (List.map indexes_involved b_cf) in
   let b_cf_indexes = IntSet.of_list b_cf_indexes in
@@ -119,7 +121,7 @@ let resimulate (b_f,b_cf) scs trace =
     with Resimulation.End_of_resimulation -> acc
   in
   let builder = Global_trace.new_counterfactual_trace_builder () in
-  let builder = resimulate_step 0 (Resimulation.init (Global_trace.get_model trace) (Random.get_state ())) builder in
+  let builder = resimulate_step 0 (Resimulation.init (Global_trace.get_model trace) random_state) builder in
   Global_trace.finalize_counterfactual_trace trace builder
 
 let print fmt (f,cf) =
