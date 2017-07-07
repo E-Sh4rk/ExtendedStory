@@ -28,7 +28,7 @@ let get_first_eoi_after te rule_name i =
   | i -> aux (i+1) in
   aux (i+1)
 
-let main () =
+let main () = Printexc.record_backtrace true ;
   let () =
     Arg.parse
       options

@@ -1,6 +1,6 @@
 MODEL=test
 OBS=p
-TIME=10
+TIME=3600
 
 ExtendedStory: ExtendedStory.native
 	cp $< $@
@@ -12,8 +12,9 @@ clean:
 	rm -rf _build ExtendedStory ExtendedStory.native
 
 test:
-	cd tests ; KaSim -i $(MODEL).ka -l $(TIME) -trace $(MODEL).json
+	mkdir -p tests/kasim_tmp
+	cd tests/kasim_tmp ; KaSim ../$(MODEL).ka -l $(TIME) -trace $(MODEL).json
 	mkdir -p tests/$(MODEL)
-	./ExtendedStory -o tests/$(MODEL)/eoi -r $(OBS) tests/$(MODEL).json
-	cd tests ; ./dot.sh $(MODEL)
-	cd tests ; rm $(MODEL).json inputs*.ka
+	./ExtendedStory -o tests/$(MODEL)/eoi -r $(OBS) tests/kasim_tmp/$(MODEL).json
+	./dot.sh tests/$(MODEL)
+	cd tests ; rm -r kasim_tmp

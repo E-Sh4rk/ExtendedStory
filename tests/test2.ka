@@ -1,0 +1,17 @@
+%agent: A(b,c)
+%agent: B(a~u~p)
+%agent: C(a~u~p)
+
+'Bp'   B(a~u) -> B(a~p)               	@ 1
+'Bu'   B(a~p) -> B(a~u)                 @ 1
+'Cp'   C(a~u) -> C(a~p)                 @ 1
+'Cu'   C(a~p) -> C(a~u)                 @ 1
+'A.B'  A(b), B(a) -> A(b!1), B(a!1)     @ 0.5
+'A.C'  A(c), C(a) -> A(c!1), C(a!1)     @ 0.5
+'A/Bu' A(b!1), B(a~u!1) -> A(b), B(a~u) @ 2
+'A/Cu' A(c!1), C(a~u!1) -> A(c), C(a~u) @ 2
+
+%init: 10 A(), B(), C()
+%obs: 'BAC' |A(b!1,c!2),B(a!1),C(a!2)|
+
+%mod: [true] do $TRACK 'BAC' [true]
