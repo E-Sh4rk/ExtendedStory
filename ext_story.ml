@@ -1,6 +1,5 @@
 open Resimulator_interface
 open Ext_tools
-open Heuristics
 open Global_trace
 
 type cf_part = Global_trace.t * ((int * Grid.constr * int) list) (* (subtrace, inhibition arrows) *)
@@ -8,6 +7,7 @@ type extended_story = Global_trace.t * (cf_part list) (* (subtrace, counterfactu
 
 type configuration =
 {
+  heuristic    : Global_trace.t -> int list -> Resimulator_interface.interventions;
   nb_samples   : int;
   threshold    : float;
   max_counterfactual_parts : int;
@@ -128,7 +128,7 @@ let factual_events_of_trace trace =
    let rec aux core cf_parts events_in_factual =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
     logs "Determining interventions (heuristic)..." ;
-    let interventions = heuristic_block_all trace core in
+    let interventions = config.heuristic trace core in
     let scs = [Event_has_happened eoi;Event_has_not_happened eoi] in
     (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
     (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)

@@ -4,6 +4,7 @@ type extended_story = Global_trace.t * (cf_part list) (* (subtrace, counterfactu
 
 type configuration =
 {
+  heuristic    : Global_trace.t -> int list -> Resimulator_interface.interventions;
   nb_samples   : int;
   threshold    : float;
   max_counterfactual_parts : int;

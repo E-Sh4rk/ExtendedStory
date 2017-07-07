@@ -46,6 +46,7 @@ let main () =
 
     let config =
     {
+      heuristic    = Heuristics.heuristic_block_all_persistent;
       nb_samples   = 10;
       threshold    = 0.5;
       max_counterfactual_parts = 2 ;

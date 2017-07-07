@@ -13,7 +13,7 @@ let heuristic_block_all_persistent trace core : interventions =
 
   let rec events_admissible acc i = match i with
   | i when i < 0 -> acc
-  | i -> let s = get_step trace i in if is_admissible_rule s i then events_admissible (i::acc) (i-1) else events_admissible acc (i-1)
+  | i -> if is_admissible_rule (get_step trace i) i then events_admissible (i::acc) (i-1) else events_admissible acc (i-1)
   in
 
   let involved agents_tested i =
