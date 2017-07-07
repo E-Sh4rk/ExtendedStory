@@ -28,7 +28,7 @@ let get_first_eoi_after te rule_name i =
   | i -> aux (i+1) in
   aux (i+1)
 
-let main () = Printexc.record_backtrace true ;
+let main () = (*Printexc.record_backtrace true ;*)
   let () =
     Arg.parse
       options
@@ -49,7 +49,7 @@ let main () = Printexc.record_backtrace true ;
 
     let config =
     {
-      heuristic    = Heuristics.heuristic_block_all_persistent;
+      heuristic    = Heuristics.heuristic_block_all;
       nb_samples   = 10;
       threshold    = 0.5;
       max_counterfactual_parts = 2 ;

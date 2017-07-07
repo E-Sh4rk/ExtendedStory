@@ -5,7 +5,7 @@ open Global_trace
 (* TO AVOID INFINITE LOOPS, HEURISTICS MUST NOT BLOCK EVENTS THAT ARE IN THE CORE ! *)
 
 (* Block in trace T every event that involve agents in the factual core and that are not in the factual causal core. *)
-let heuristic_block_all_persistent trace core : interventions =
+let heuristic_block_all_persistent trace core eoi : interventions =
 
   let is_admissible_rule core step index = match step with
     | Trace.Rule _ -> not (IntSet.mem index core)
@@ -29,11 +29,11 @@ let heuristic_block_all_persistent trace core : interventions =
 
   let agents_tested_in_core = List.fold_left
   (fun acc i -> ASet.union acc (agents_involved (get_tests trace i))) ASet.empty core in
-  let events_to_block = events_admissible (IntSet.of_list core) [] ((length trace)-1) in
+  let events_to_block = events_admissible (IntSet.of_list core) [] (eoi-1) in
   let events_to_block = List.map (involved agents_tested_in_core) events_to_block in
   let events_to_block = List.filter (fun (i,inv) -> not (ASet.is_empty inv)) events_to_block in
   (List.map block_f_event events_to_block, List.map block_cf_events events_to_block)
 
-let heuristic_block_all trace core : interventions =
-  let (f,_) = heuristic_block_all_persistent trace core
+let heuristic_block_all trace core eoi : interventions =
+  let (f,_) = heuristic_block_all_persistent trace core eoi
   in (f,[])

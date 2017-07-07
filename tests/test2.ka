@@ -11,7 +11,8 @@
 'A/Bu' A(b!1), B(a~u!1) -> A(b), B(a~u) @ 2
 'A/Cu' A(c!1), C(a~u!1) -> A(c), C(a~u) @ 2
 
-%init: 10 A(), B(), C()
+%init: 1 A(), B(), C()
 %obs: 'BAC' |A(b!1,c!2),B(a!1),C(a!2)|
+#%obs: 'BAC' |A(b!_,c!_)|
 
 %mod: [true] do $TRACK 'BAC' [true]
