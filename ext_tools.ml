@@ -10,6 +10,8 @@ module IntSet = Set.Make(Int)
 
 let logs s = print_string s ; print_newline () ; flush stdout
 
+let dbg s = logs ("[DBG] "^s)
+
 let min_c c e1 e2 = match c e1 e2 with
 | -1 -> e1 | 0 -> e1 | 1 -> e2 | _ -> assert false
 let max_c c = min_c (fun a b -> - (c a b))

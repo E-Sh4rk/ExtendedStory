@@ -31,3 +31,5 @@ val is_cf_event_blocked : blocked_cf_event list -> int -> Model.t ->  int option
 val must_stop : stop_conditions -> int -> counterfactual_step -> stop
 
 val resimulate : interventions -> stop_conditions -> Global_trace.t -> Global_trace.t
+
+val print : Format.formatter -> interventions -> unit

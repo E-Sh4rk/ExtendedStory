@@ -31,6 +31,7 @@ let resimulate_and_sample trace nb eoi block_pred stop_pred =
     | 0 -> (nb_failed,wit)
     | n ->
     let cf_trace = resimulate block_pred stop_pred trace in
+    dbg (Format.asprintf "%a" Global_trace.print cf_trace) ;
     if cf_trace_succeed (get_global_id trace eoi) cf_trace then
     aux (n-1) (nb_failed,wit)
     else
@@ -102,7 +103,7 @@ let find_inhibitive_arrows trace1 trace2 follow_core eoi1 =
     let index2_eq = search_last_before_order trace2 (get_order trace1 dest) in
     let index2_eq = match index2_eq with None -> -1 | Some i -> i in
     let inh = List.map (fun c -> (last_inhibitive_event_before trace2 (index2_eq+1) c, c)) (get_tests trace1 eoi1) in
-    let inh = List.filter (fun (opt,c) -> opt <> None) inh in
+    let inh = List.filter (fun (opt,_) -> opt <> None) inh in
     let inh = List.map (function (Some src,c) -> (src,c,dest) | _ -> assert false) inh in
     match inh with
     | [] -> [No_reason (dest)]
@@ -129,6 +130,7 @@ let factual_events_of_trace trace =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
     logs "Determining interventions (heuristic)..." ;
     let interventions = config.heuristic trace core in
+    dbg (Format.asprintf "%a" Resimulator_interface.print interventions) ;
     let scs = [Event_has_happened eoi;Event_has_not_happened eoi] in
     (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
     (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)
@@ -194,9 +196,12 @@ let factual_events_of_trace trace =
 
 let compute_extended_story trace eoi config : extended_story =
   let trace = new_reference_trace trace in
+  dbg (Format.asprintf "Trace length : %d" (length trace)) ;
+  dbg (Format.asprintf "EOI : %d" eoi) ;
   (* Computing factual causal core *)
   logs "Computing initial factual core..." ;
   let core = compute_causal_core trace [eoi] in
+  dbg (Format.asprintf "Core length : %d" (List.length core)) ;
   (* Adding counterfactual parts *)
   let (core, cf_parts) = add_cf_parts trace eoi core config in
   let subtrace = subtrace_of trace core in

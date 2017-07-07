@@ -121,3 +121,8 @@ let resimulate (b_f,b_cf) scs trace =
   let builder = Global_trace.new_counterfactual_trace_builder () in
   let builder = resimulate_step 0 (Resimulation.init (Global_trace.get_model trace) (Random.get_state ())) builder in
   Global_trace.finalize_counterfactual_trace trace builder
+
+let print fmt (f,cf) =
+  List.iter (fun x -> Format.fprintf fmt "%d ; " x) f ;
+  if cf <> [] then Format.fprintf fmt " (+persistence)"
+

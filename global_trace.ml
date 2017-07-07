@@ -153,3 +153,8 @@ let get_actions tr index = Trace_explorer.Grid.actions index (get_trace_explorer
 let get_var_infos ((_,vi),_) = vi
 
 let get_history ((_,vi),_) var = Causal_core.get_modifications_history var vi
+
+(* Printing functions *)
+let print fmt tr =
+  let core = n_first_intergers (length tr) in
+  List.iter (fun i -> Format.fprintf fmt "%d ; " (get_global_id tr i)) core
