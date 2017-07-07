@@ -1,0 +1,19 @@
+%agent: K(d, x~u~p)
+%agent: S(d, x~u~p)
+
+'pK' K(x~u) -> K(x~p) @ 'mod_rate_slow'
+'b'  K(d), S(d) -> K(d!1), S(d!1) @ 'on_rate'
+'u'  K(d!1, x~u), S(d!1) -> K(d, x~u), S(d) @ 'off_rate_fast'
+'u*' K(d!1, x~p), S(d!1) -> K(d, x~p), S(d) @ 'off_rate_slow'
+'p'  K(d!1), S(d!1, x~u) -> K(d!1), S(d!1, x~p) @ 'mod_rate'
+
+%var: 'VA' 1
+%var: 'off_rate_fast' 1000 # s^(-1)
+%var: 'off_rate_slow' 1 # s^(-1)
+%var: 'mod_rate' 5 # s^(-1)
+%var: 'mod_rate_slow' 0.05 # s^(-1)
+%var: 'on_rate' 1 / 'VA'# s^(-1)*M^(-1)
+
+%init: 'VA' K(x~u), S(x~u)
+
+%mod: |S(x~p)| > 0 do $STOP
