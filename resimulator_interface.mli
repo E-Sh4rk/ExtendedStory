@@ -33,3 +33,4 @@ val must_stop : stop_conditions -> int -> counterfactual_step -> stop
 val resimulate : interventions -> stop_conditions -> Global_trace.t -> Global_trace.t
 
 val print : Format.formatter -> interventions -> unit
+val print_short : Format.formatter -> interventions -> unit

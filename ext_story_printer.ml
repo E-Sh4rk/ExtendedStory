@@ -30,7 +30,7 @@ let compute_precedence subtrace =
 
 let compute_activation subtrace =
     let core = n_first_intergers (Global_trace.length subtrace) in
-    let activations = Precedence.compute_strong_deps (Global_trace.get_trace_explorer subtrace) core in
+    let activations = Precedence.compute_strong_deps ~compute_all_activations:true (Global_trace.get_trace_explorer subtrace) core in
     List.map (fun (i1,c,i2) -> (Global_trace.get_global_id subtrace i1,c,Global_trace.get_global_id subtrace i2)) activations
 
 let print_factual_event trace part_nb index already_printed id_to_gid (mode,options) fmt =

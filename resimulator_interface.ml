@@ -128,3 +128,7 @@ let print fmt (f,cf) =
   List.iter (fun x -> Format.fprintf fmt "%d ; " x) f ;
   if cf <> [] then Format.fprintf fmt " (+cf)"
 
+let print_short fmt (f,cf) =
+  Format.fprintf fmt "%d events blocked" (List.length f) ;
+  if cf <> [] then Format.fprintf fmt " (+cf)";
+  Format.fprintf fmt "."
