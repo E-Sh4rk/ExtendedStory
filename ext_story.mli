@@ -6,6 +6,7 @@ type configuration =
 {
   heuristic    : Global_trace.t -> int list -> int -> Resimulator_interface.interventions;
   nb_samples   : int;
+  max_rejections   : int;
   threshold    : float;
   max_counterfactual_parts : int;
   precompute_cf_cores : bool;

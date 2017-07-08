@@ -9,6 +9,7 @@ type configuration =
 {
   heuristic    : Global_trace.t -> int list -> int -> Resimulator_interface.interventions;
   nb_samples   : int;
+  max_rejections   : int;
   threshold    : float;
   max_counterfactual_parts : int;
   precompute_cf_cores : bool;
@@ -21,22 +22,36 @@ let compute_causal_core trace eois =
   let eois = List.sort_uniq Pervasives.compare eois in
   Causal_core.core_events (Causal_core.compute_causal_core (get_trace_explorer trace) (get_var_infos trace) eois)
 
+let cf_trace_rejected eoi trace cf_trace =
+  let model = get_model trace in
+  let name = get_step_name model (get_step trace eoi) "" in
+  let cf_index_eq = search_last_before_order cf_trace (get_order trace eoi) in
+  let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
+  let rec aux i = match i with
+  | i when i < 0 -> false
+  | i when get_step_name model (get_step cf_trace i) "" = name
+  && get_global_id cf_trace i < 0 -> true
+  | i -> aux (i-1)
+  in aux cf_index_eq
+
 let cf_trace_succeed eoi_id cf_trace =
   match search_global_id cf_trace eoi_id with
   | None -> false
   | Some _ -> true
 
-let resimulate_and_sample trace nb eoi block_pred stop_pred =
-  let rec aux nb (nb_failed,wit) = match nb with
-    | 0 -> (nb_failed,wit)
-    | n ->
+let resimulate_and_sample trace nb max_rejections eoi block_pred stop_pred =
+  let rec aux n nb_rej nb_failed wit = match n, nb_rej with
+    | 0, _ -> (nb,nb_rej,nb_failed,wit)
+    | n, nb_rej when nb_rej > max_rejections -> (nb-n,nb_rej,nb_failed,wit)
+    | n, nb_rej ->
     let cf_trace = resimulate block_pred stop_pred trace in
     (*dbg (Format.asprintf "%a" Global_trace.print cf_trace) ;*)
-    if cf_trace_succeed (get_global_id trace eoi) cf_trace then
-    aux (n-1) (nb_failed,wit)
-    else
-    aux (n-1) (nb_failed+1,Some cf_trace)
-  in aux nb (0,None)
+    if cf_trace_rejected eoi trace cf_trace
+    then aux n (nb_rej+1) nb_failed wit
+    else if cf_trace_succeed (get_global_id trace eoi) cf_trace then
+    aux (n-1) nb_rej nb_failed wit
+    else aux (n-1) nb_rej (nb_failed+1) (Some cf_trace)
+  in aux nb 0 0 None
 
 let rec last_inhibitive_event_before trace index constr =
   let Grid.Constr (var, _) = constr in
@@ -137,9 +152,9 @@ let factual_events_of_trace trace =
     (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
     (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)
     logs (Format.asprintf "%a. Resimulating..." Resimulator_interface.print_short interventions) ;
-    let (nb_failed,cf_trace) = resimulate_and_sample trace config.nb_samples eoi interventions scs in
-    let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
-    logs ("Ratio : "^(string_of_float ratio)) ;
+    let (nb_samples,nb_rej,nb_failed,cf_trace) = resimulate_and_sample trace config.nb_samples config.max_rejections eoi interventions scs in
+    let ratio = if nb_samples > 0 then 1.0 -. (float_of_int nb_failed)/.(float_of_int nb_samples) else 1.0 in
+    logs ((string_of_int nb_rej)^" rejected. Ratio : "^(string_of_float ratio)) ;
     if ratio >= config.threshold || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
     else
     (

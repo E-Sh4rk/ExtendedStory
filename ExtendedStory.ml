@@ -51,6 +51,7 @@ let main () = (*Printexc.record_backtrace true ;*)
     {
       heuristic    = Heuristics.heuristic_1 Heuristics.Persistence;
       nb_samples   = 10;
+      max_rejections = 10;
       threshold    = 0.95;
       max_counterfactual_parts = 2 ;
       precompute_cf_cores = true ;
