@@ -31,11 +31,11 @@ let choose_node_color settings tr part_nb i _ =
         let maxT = max_time tr in
         let t = get_time_of_step (Global_trace.get_step tr i) 0.0 in
         let (h,s,v) = (0., 0., (1.0 -. 0.4 *. t /. maxT)) in
-        if Global_trace.get_global_id tr i < 0 then ((float_of_int (part_nb-1))/.(float_of_int (settings.nb_cf_parts-1)),0.5,v) else (h,s,v)
+        if Global_trace.get_global_id tr i < 0 then ((float_of_int part_nb)/.(float_of_int (settings.nb_cf_parts+1)),0.5,v) else (h,s,v)
 
 let choose_edge_color settings part_nb =
     if part_nb = 0 then (0.,0.,0.) else
-    ((float_of_int (part_nb-1))/.(float_of_int (settings.nb_cf_parts-1)),0.5,0.)
+    ((float_of_int part_nb)/.(float_of_int (settings.nb_cf_parts+1)),0.5,0.5)
 
 let compute_precedence subtrace =
     let core = n_first_intergers (Global_trace.length subtrace) in
