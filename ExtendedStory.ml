@@ -49,7 +49,7 @@ let main () = (*Printexc.record_backtrace true ;*)
 
     let config =
     {
-      heuristic    = Heuristics.heuristic_block_all Heuristics.Persistence;
+      heuristic    = Heuristics.heuristic_1 Heuristics.Persistence;
       nb_samples   = 10;
       threshold    = 0.95;
       max_counterfactual_parts = 2 ;

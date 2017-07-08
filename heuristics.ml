@@ -27,20 +27,48 @@ let next_core_event_that_test_an_agent_of trace core i agents =
   let core = List.sort_uniq Pervasives.compare core in
   aux core
 
-(* TODO : improvement : block only events that have an action on a logical site NOT tested by a core event
-but on an agent tested by this core event, and only if it is the last event to modify this site before the core event. *)
-let heuristic_1 trace core eoi : interventions =
+(* Block only events that have an action on a logical site NOT TESTED by a core event but on an agent TESTED by this core event,
+   and only if it is the last event to modify this site before the core event. *)
+let heuristic_1 pers trace core eoi : interventions =
 
-  let find_next_admissible_core_event i action = None in
+  let find_next_admissible_core_event i action =
+    let agent = agents_involved [action] in
+    let next = next_core_event_that_test_an_agent_of trace core i agent in
+    match next with
+    | None -> None
+    | Some j -> let Grid.Constr (var, _) = action in
+    if List.exists (fun (Grid.Constr (var', _)) -> Grid.Var var = Grid.Var var') (get_tests trace j)
+    then None else
+    (
+      let history = get_history trace var in
+      match History.last_before j history with
+      | None -> assert false
+      | Some g when g = i -> Some (j,agent)
+      | Some g when g > i -> None
+      | _ -> assert false
+    )
+  in
 
   let find_next_admissible_core_events i =
     let evs = List.map (find_next_admissible_core_event i) (get_actions trace i) in
     let evs = List.filter (fun opt -> opt <> None) evs in
-    List.map (function None -> assert false | Some i -> i) evs in
+    (i,List.map (function None -> assert false | Some i -> i) evs)
+  in
+
+  let block_cf_events (i, lst) =
+    match get_step trace i with
+    | Trace.Rule (rid,_,_) -> List.map (fun (j,agent) -> Blocked_rule (rid, agent, None, Some j) ) lst
+    | _ -> assert false
+  in
 
   let admissible = admissible_events trace core eoi in
   let admissible = List.map find_next_admissible_core_events admissible in
-  ([],[])
+  let admissible = List.filter (fun (_,l) -> l <> []) admissible in
+  let persistent = (List.map (fun (i,_) -> i) admissible,List.flatten (List.map block_cf_events admissible)) in
+  if pers = Persistence then persistent
+  else if pers = No_persistence then let (f,_) = persistent in (f,[])
+  else let (f,cf) = persistent in
+  (f,List.map (function Blocked_rule (rid,inv,_,_) -> Blocked_rule (rid,inv,None,None) | _ -> assert false) cf)
 
 (* Block in trace T every event that involve agents in the factual core and that are not in the factual causal core. *)
 let heuristic_block_all pers trace core eoi : interventions =
@@ -61,8 +89,8 @@ let heuristic_block_all pers trace core eoi : interventions =
   let events_to_block = admissible_events trace core eoi in
   let events_to_block = List.map (involved agents_tested_in_core) events_to_block in
   let events_to_block = List.filter (fun (i,inv) -> not (ASet.is_empty inv)) events_to_block in
-  let full_pers = (List.map block_f_event events_to_block, List.map block_cf_events events_to_block) in
-  if pers = Persistence then full_pers
-  else if pers = No_persistence then let (f,_) = full_pers in (f,[])
-  else let (f,cf) = full_pers in
+  let persistent = (List.map block_f_event events_to_block, List.map block_cf_events events_to_block) in
+  if pers = Persistence then persistent
+  else if pers = No_persistence then let (f,_) = persistent in (f,[])
+  else let (f,cf) = persistent in
   (f,List.map (function Blocked_rule (rid,inv,_,_) -> Blocked_rule (rid,inv,None,None) | _ -> assert false) cf)
