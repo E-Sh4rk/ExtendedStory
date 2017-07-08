@@ -1,0 +1,22 @@
+%agent: A(b,c,d)
+%agent: B(a~u~p)
+%agent: C(a~u~p)
+%agent: D(a~u~p)
+
+'Bp'   B(a~u) -> B(a~p)               	@ 5
+'Bu'   B(a~p) -> B(a~u)                 @ 5
+'Cp'   C(a~u) -> C(a~p)                 @ 5
+'Cu'   C(a~p) -> C(a~u)                 @ 5
+'Dp'   D(a~u) -> D(a~p)                 @ 5
+'Du'   D(a~p) -> D(a~u)                 @ 5
+'A.B'  A(b), B(a) -> A(b!1), B(a!1)     @ 1
+'A.C'  A(c), C(a) -> A(c!1), C(a!1)     @ 1
+'A.D'  A(d), D(a) -> A(d!1), D(a!1)     @ 1
+'A/Bu' A(b!1), B(a~u!1) -> A(b), B(a~u) @ 25
+'A/Cu' A(c!1), C(a~u!1) -> A(c), C(a~u) @ 25
+'A/Du' A(d!1), D(a~u!1) -> A(d), D(a~u) @ 25
+
+%init: 1 A(), B(), C(), D()
+%obs: 'ABCD' |A(b!1,c!2,d!3),B(a!1),C(a!2),D(a!3)|
+
+%mod: [true] do $TRACK 'ABCD' [true]

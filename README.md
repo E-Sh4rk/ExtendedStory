@@ -28,4 +28,4 @@ To test it on your own model, simply put it in the *tests* folder and type :
 You can also directly use the ExtendedStory binary on a trace if you need more options.
 
 To run our examples :
-`make test` or `make test MODEL=test2 OBS=BAC`.
+`make test` or `make test MODEL=test2 OBS=BAC` or `make test MODEL=test3 OBS=ABCD`.
