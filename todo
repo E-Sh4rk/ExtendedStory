@@ -1,0 +1,8 @@
+
+- When there is no inhibition :
+Make a blacklist instead of adding events to the core...
+
+- When we have rewinded to factual events, call recursively the algorithm on the event obtained :
+in this way we will not add many time the same event to the factual core.
+
+- Reproduce and fix the issues eoi_34 & eoi_50.

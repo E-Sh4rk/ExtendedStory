@@ -1,0 +1,136 @@
+digraph G{
+  rankdir="TB";
+  ranksep=1.00;
+  node [fontname="CMU Serif"];
+  edge [fontname="CMU Serif"];
+  
+  /* EVENT : 0
+     TESTS : 
+     MODS  : A[0] := true, B[1] := true, B[1].a := u, C[2] := true,
+             C[2].a := u, D[3] := true, D[3].a := u, D[3].a := free,
+             D[3].a := u, C[2].a := free, C[2].a := u, B[1].a := free,
+             B[1].a := u, A[0].d := free, A[0].c := free, A[0].b := free
+  */
+  0 [label="[0] Intro A, B, C, D", shape=rectangle, style=filled, fillcolor="0.000 0.000 1.000"]
+  
+  /* EVENT : 1
+     TESTS : C[2] = true, C[2].a = u, C[2].a = free
+     MODS  : C[2].a := p
+  */
+  1 [label="[1] Cp", shape=invhouse, style=filled, fillcolor="0.000 0.000 0.997"]
+  
+  /* EVENT : 4
+     TESTS : C[2] = true, C[2].a = free, A[0] = true, A[0].c = free
+     MODS  : C[2].a := bound(A[0].c), A[0].c := bound(C[2].a)
+  */
+  4 [label="[4] A.C", shape=invhouse, style=filled, fillcolor="0.000 0.000 0.982"]
+  
+  /* EVENT : 26
+     TESTS : D[3] = true, D[3].a = u, D[3].a = free
+     MODS  : D[3].a := p
+  */
+  26 [label="[26] Dp", shape=invhouse, style=filled, fillcolor="0.000 0.000 0.798"]
+  
+  /* EVENT : 28
+     TESTS : D[3] = true, D[3].a = free, A[0] = true, A[0].d = free
+     MODS  : D[3].a := bound(A[0].d), A[0].d := bound(D[3].a)
+  */
+  28 [label="[28] A.D", shape=invhouse, style=filled, fillcolor="0.000 0.000 0.787"]
+  
+  /* EVENT : 33
+     TESTS : B[1] = true, B[1].a = free, A[0] = true, A[0].b = free
+     MODS  : B[1].a := bound(A[0].b), A[0].b := bound(B[1].a)
+  */
+  33 [label="[33] A.B", shape=invhouse, style=filled, fillcolor="0.000 0.000 0.600"]
+  
+  /* EVENT : 34
+     TESTS : B[1].a = bound(A[0].b), B[1] = true, C[2].a = bound(A[0].c),
+             C[2] = true, D[3].a = bound(A[0].d), D[3] = true, A[0] = true
+     MODS  : 
+  */
+  34 [label="[34] ABCD", shape=rectangle, style=filled, fillcolor="0.000 0.000 0.600"]
+  
+  33 -> 34 [dir=none, color=grey] 
+  28 -> 34 [dir=none, color=grey] 
+  26 -> 28 [dir=none, color=grey] 
+  4 -> 34 [dir=none, color=grey] 
+  1 -> 4 [dir=none, color=grey] 
+  0 -> 1 [dir=none, color=grey] 
+  0 -> 26 [dir=none, color=grey] 
+  0 -> 33 [dir=none, color=grey] 
+  
+  0 -> 1 [label="C[2].a", fontsize=9, color="0.000 0.000 0.000"] // C[2].a = u
+  0 -> 1 [label="C[2].a", fontsize=9, color="0.000 0.000 0.000"] // C[2].a = free
+  0 -> 4 [label="C[2].a", fontsize=9, color="0.000 0.000 0.000"] // C[2].a = free
+  0 -> 4 [label="A[0].c", fontsize=9, color="0.000 0.000 0.000"] // A[0].c = free
+  0 -> 26 [label="D[3].a", fontsize=9, color="0.000 0.000 0.000"] // D[3].a = u
+  0 -> 26 [label="D[3].a", fontsize=9, color="0.000 0.000 0.000"] // D[3].a = free
+  0 -> 28 [label="D[3].a", fontsize=9, color="0.000 0.000 0.000"] // D[3].a = free
+  0 -> 28 [label="A[0].d", fontsize=9, color="0.000 0.000 0.000"] // A[0].d = free
+  0 -> 33 [label="B[1].a", fontsize=9, color="0.000 0.000 0.000"] // B[1].a = free
+  0 -> 33 [label="A[0].b", fontsize=9, color="0.000 0.000 0.000"] // A[0].b = free
+  33 -> 34 [label="B[1].a", fontsize=9, color="0.000 0.000 0.000"] // B[1].a = bound(A[0].b)
+  4 -> 34 [label="C[2].a", fontsize=9, color="0.000 0.000 0.000"] // C[2].a = bound(A[0].c)
+  28 -> 34 [label="D[3].a", fontsize=9, color="0.000 0.000 0.000"] // D[3].a = bound(A[0].d)
+  
+  
+  /* EVENT : -307
+     TESTS : A[0] = true, D[3] = true, D[3].a = u, D[3].a = bound(A[0].d)
+     MODS  : D[3].a := free, A[0].d := free
+  */
+  -307 [label="[-307] A/Du", shape=invhouse, style=filled, fillcolor="0.333 0.500 0.600"]
+  
+  
+  26 -> -307 [label="D[3].a", fontsize=9, arrowhead="tee", color="0.333 0.500 0.500"] 
+  // D[3].a = u
+  -307 -> 34 [label="D[3].a", fontsize=9, arrowhead="tee", color="0.333 0.500 0.500"] 
+  // D[3].a = bound(A[0].d)
+  
+  
+  
+  /* EVENT : -191
+     TESTS : A[0] = true, C[2] = true, C[2].a = u, C[2].a = bound(A[0].c)
+     MODS  : C[2].a := free, A[0].c := free
+  */
+  -191 [label="[-191] A/Cu", shape=invhouse, style=filled, fillcolor="0.667 0.500 0.967"]
+  
+  /* EVENT : -202
+     TESTS : C[2] = true, C[2].a = free, A[0] = true, A[0].c = free
+     MODS  : C[2].a := bound(A[0].c), A[0].c := bound(C[2].a)
+  */
+  -202 [label="[-202] A.C", shape=invhouse, style=filled, fillcolor="0.667 0.500 0.623"]
+  
+  /* EVENT : -203
+     TESTS : A[0] = true, D[3] = true, D[3].a = u, D[3].a = bound(A[0].d)
+     MODS  : D[3].a := free, A[0].d := free
+  */
+  -203 [label="[-203] A/Du", shape=invhouse, style=filled, fillcolor="0.667 0.500 0.613"]
+  
+  /* EVENT : -205
+     TESTS : A[0] = true, C[2] = true, C[2].a = u, C[2].a = bound(A[0].c)
+     MODS  : C[2].a := free, A[0].c := free
+  */
+  -205 [label="[-205] A/Cu", shape=invhouse, style=filled, fillcolor="0.667 0.500 0.600"]
+  
+  
+  28 -> 25 [label="D[3].a", fontsize=9, arrowhead="tee", color="0.667 0.500 0.500"] 
+  // D[3].a = free
+  1 -> -191 [label="C[2].a", fontsize=9, arrowhead="tee", color="0.667 0.500 0.500"] 
+  // C[2].a = u
+  -203 -> 34 [label="D[3].a", fontsize=9, arrowhead="tee", color="0.667 0.500 0.500"] 
+  // D[3].a = bound(A[0].d)
+  -205 -> 34 [label="C[2].a", fontsize=9, arrowhead="tee", color="0.667 0.500 0.500"] 
+  // C[2].a = bound(A[0].c)
+  
+  -202 -> -205 [dir=none, color=grey] 
+  -191 -> -202 [dir=none, color=grey] 
+  
+  -191 -> -202 [label="C[2].a", fontsize=9, color="0.667 0.500 0.500"] 
+  // C[2].a = free
+  -191 -> -202 [label="A[0].c", fontsize=9, color="0.667 0.500 0.500"] 
+  // A[0].c = free
+  -202 -> -205 [label="C[2].a", fontsize=9, color="0.667 0.500 0.500"] 
+  // C[2].a = bound(A[0].c)
+  
+  
+  }
