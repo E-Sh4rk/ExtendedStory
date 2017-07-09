@@ -10,7 +10,7 @@ type configuration =
   max_rejections   : int;
   threshold    : float;
   max_counterfactual_parts : int;
-  precompute_cf_cores : bool;
+  precompute_cores : bool;
   max_cf_inhibition_arrows : int;
   max_fc_inhibition_arrows_per_inhibator : int;
   add_all_factual_events_involved_to_factual_core : bool;

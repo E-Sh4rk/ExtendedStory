@@ -13,7 +13,7 @@ type configuration =
   max_rejections   : int;
   threshold    : float;
   max_counterfactual_parts : int;
-  precompute_cf_cores : bool;
+  precompute_cores : bool;
   max_cf_inhibition_arrows : int;
   max_fc_inhibition_arrows_per_inhibator : int;
   add_all_factual_events_involved_to_factual_core : bool;
@@ -146,74 +146,90 @@ let factual_events_of_trace trace =
   | i -> aux acc (i-1) in
   aux (IntSet.empty) ((length trace)-1)
 
- let add_cf_parts trace eoi core config =
-   let rec aux core cf_parts events_in_factual blacklist =
-    (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
-    logs "Determining interventions (heuristic)..." ;
-    let interventions = config.heuristic trace blacklist core eoi in
-    (*dbg (Format.asprintf "%a" Resimulator_interface.print interventions) ;*)
-    let scs = [Event_has_happened eoi;Event_has_not_happened eoi] in
-    (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
-    (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)
-    logs (Format.asprintf "%a. Resimulating..." Resimulator_interface.print_short interventions) ;
-    let (nb_samples,nb_rej,nb_failed,wit) = resimulate_and_sample trace config.nb_samples config.max_rejections eoi interventions scs in
-    let ratio = if nb_samples > 0 then 1.0 -. (float_of_int nb_failed)/.(float_of_int nb_samples) else 1.0 in
-    logs ((string_of_int nb_rej)^" rejected. Ratio : "^(string_of_float ratio)) ;
-    if ratio >= config.threshold || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
-    else
-    (
-      logs "Computing counterfactual experiment..." ;
-      let (trace,cf_trace) = match wit with Some wit -> wit | None -> assert false in
-      (* Find the inhibitors of eoi in the cf trace, and eventually filter them. *)
-      (* If there is a direct cause that has been blocked directly, we blacklist it and we try again. *)
-      let reasons = find_inhibitive_arrows trace cf_trace (Some (IntSet.of_list core)) eoi in
+let find_cf_part trace cf_trace eoi events_in_factual config =
+  let rec aux dest events_in_factual events_in_cf =
+    (* Find the inhibitors of eoi in the cf trace, and eventually filter them. *)
+    (* If there is a direct cause that has been blocked directly, we blacklist it and we try again. *)
+    let events_in_factual = IntSet.add dest events_in_factual in
+    let pre_core = if config.precompute_cores
+      then Some (IntSet.of_list (compress trace (IntSet.elements events_in_factual) config.compression_algorithm))
+      else None in
+    let reasons = find_inhibitive_arrows trace cf_trace pre_core dest in
 
-      let dummy_direct_causes = List.map (function No_reason i -> i | Inhibition _ -> assert false)
-        (List.filter (function No_reason _ -> true | Inhibition _ -> false) reasons) in
-      let blacklist = IntSet.of_list dummy_direct_causes in
+    let dummy_direct_causes = List.map (function No_reason i -> i | Inhibition _ -> assert false)
+      (List.filter (function No_reason _ -> true | Inhibition _ -> false) reasons) in
+    let blacklist = IntSet.of_list dummy_direct_causes in
 
-      if dummy_direct_causes <> [] then
-      begin        
-        logs "Direct cause blocked ! Try again..." ;
-        aux core cf_parts events_in_factual blacklist
-      end
-      else begin
-        let inhibitors_cf = List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
-        (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons) in
-        let inhibitors_cf = choose_arrows inhibitors_cf config.max_cf_inhibition_arrows in
-        let inhibitors_cf_ids = List.map (fun (src,c,dest) -> get_global_id cf_trace src, c, get_global_id trace dest) inhibitors_cf in
-        (* Find the inhibitors of cf_eois in the factual trace, and eventually filter them *)
-        let cf_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_cf in
-        let cf_pre_core = if config.precompute_cf_cores
-        then Some (IntSet.of_list (compress cf_trace (IntSet.elements cf_eois) config.compression_algorithm))
-        else None in
-        let reasons = List.map (fun e -> find_inhibitive_arrows cf_trace trace cf_pre_core e) (IntSet.elements cf_eois) in
-        let inhibitors_fc = List.map (fun reasons -> List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
-          (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons)) reasons in
-        let inhibitors_fc = List.map (fun inh -> choose_arrows inh config.max_fc_inhibition_arrows_per_inhibator) inhibitors_fc in
-        let inhibitors_fc = List.flatten inhibitors_fc in
-        let inhibitors_fc_ids = List.map (fun (src,c,dest) -> get_global_id trace src, c, get_global_id cf_trace dest) inhibitors_fc in
-        (* Now we have all inhibition arrows *)
-        let inhibitions_ids = inhibitors_fc_ids@inhibitors_cf_ids in
-        let cf_involved = IntSet.union cf_eois (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty inhibitors_fc) in
-        let f_involved = IntSet.union (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty inhibitors_cf)
-          (List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_fc) in
-        (* Compute the causal core associated with the cf events involved *)
-        logs ((string_of_int (List.length inhibitions_ids))^" inhibition arrows found ! Computing new causal cores...") ;
-        let cf_core = compress cf_trace (IntSet.elements cf_involved) config.compression_algorithm in
-        let cf_subtrace = subtrace_of cf_trace cf_core in
-        (* Retrieving events to add to the factual core : factual events with an inhibition arrow
-        + other factual events of the counterfactual core if we want to have more links with the factual core *)
-        let events_in_factual = IntSet.union f_involved events_in_factual in
-        let events_in_factual = if config.add_all_factual_events_involved_to_factual_core
-        then IntSet.union (factual_events_of_trace cf_subtrace) events_in_factual else events_in_factual in
-        (* Update the factual core *)
-        let core = compress trace (IntSet.elements events_in_factual) config.compression_algorithm in
-        let cf_parts = (cf_subtrace,inhibitions_ids)::cf_parts in
-        aux core cf_parts events_in_factual blacklist
-      end
-    )
-   in aux core [] (IntSet.singleton eoi) (IntSet.empty)
+    if dummy_direct_causes <> [] then
+    begin        
+      logs "Direct cause blocked ! Stopping inhibitions search..." ;
+      (events_in_factual, events_in_cf, (*inhibitions_ids*)[], blacklist)
+    end
+    else begin
+      let inhibitors_cf = List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
+      (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons) in
+      let inhibitors_cf = choose_arrows inhibitors_cf config.max_cf_inhibition_arrows in
+      let inhibitors_cf_ids = List.map (fun (src,c,dest) -> get_global_id cf_trace src, c, get_global_id trace dest) inhibitors_cf in
+      (* Find the inhibitors of cf_eois in the factual trace, and eventually filter them *)
+      let cf_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_cf in
+      let events_in_cf = IntSet.union events_in_cf cf_eois in
+      let cf_pre_core = if config.precompute_cores
+      then Some (IntSet.of_list (compress cf_trace (IntSet.elements events_in_cf) config.compression_algorithm))
+      else None in
+      let reasons = List.map (fun e -> find_inhibitive_arrows cf_trace trace cf_pre_core e) (IntSet.elements cf_eois) in
+      let inhibitors_fc = List.map (fun reasons -> List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
+        (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons)) reasons in
+      let inhibitors_fc = List.map (fun inh -> choose_arrows inh config.max_fc_inhibition_arrows_per_inhibator) inhibitors_fc in
+      let inhibitors_fc = List.flatten inhibitors_fc in
+      let inhibitors_fc_ids = List.map (fun (src,c,dest) -> get_global_id trace src, c, get_global_id cf_trace dest) inhibitors_fc in
+      let f_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_fc in
+      (* Now we have all inhibition arrows, we retrieve events involved in order to add them in the cores *)
+      let inhibitions_ids = inhibitors_fc_ids@inhibitors_cf_ids in
+      let cf_involved = IntSet.union cf_eois (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty inhibitors_fc) in
+      let f_involved = IntSet.union f_eois (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty inhibitors_cf) in
+      (* Recursivity powaaaa ! *)
+      let events_in_factual = IntSet.union events_in_factual f_involved in
+      let events_in_cf = IntSet.union events_in_cf cf_involved in
+      let result = List.map (fun e -> aux e events_in_factual events_in_cf) (IntSet.elements f_eois) in
+      List.fold_left (fun (acc1,acc2,acc3,acc4) (e1,e2,e3,e4) -> (IntSet.union acc1 e1, IntSet.union acc2 e2, acc3@e3, IntSet.union acc4 e4))
+        (events_in_factual,events_in_cf,inhibitions_ids,blacklist) result
+    end
+  in aux eoi events_in_factual IntSet.empty
+
+let add_cf_parts trace eoi core config =
+  let rec aux core cf_parts events_in_factual blacklist =
+  (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
+  logs "Determining interventions (heuristic)..." ;
+  let interventions = config.heuristic trace blacklist core eoi in
+  (*dbg (Format.asprintf "%a" Resimulator_interface.print interventions) ;*)
+  let scs = [Event_has_happened eoi;Event_has_not_happened eoi] in
+  (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
+  (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)
+  logs (Format.asprintf "%a. Resimulating..." Resimulator_interface.print_short interventions) ;
+  let (nb_samples,nb_rej,nb_failed,wit) = resimulate_and_sample trace config.nb_samples config.max_rejections eoi interventions scs in
+  let ratio = if nb_samples > 0 then 1.0 -. (float_of_int nb_failed)/.(float_of_int nb_samples) else 1.0 in
+  logs ((string_of_int nb_rej)^" rejected. Ratio : "^(string_of_float ratio)) ;
+  if ratio >= config.threshold || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
+  else
+  (
+    logs "Computing counterfactual experiment..." ;
+    let (trace,cf_trace) = match wit with Some wit -> wit | None -> assert false in
+
+    let (events_in_factual,events_in_cf,inhibitions_ids,blacklist2) = find_cf_part trace cf_trace eoi events_in_factual config in
+    let blacklist = IntSet.union blacklist blacklist2 in
+    (* Compute the counterfactual causal core *)
+    logs ((string_of_int (List.length inhibitions_ids))^" inhibition arrows found ! Computing new causal cores...") ;
+    let cf_core = compress cf_trace (IntSet.elements events_in_cf) config.compression_algorithm in
+    let cf_subtrace = subtrace_of cf_trace cf_core in
+    let cf_parts = (cf_subtrace,inhibitions_ids)::cf_parts in
+    (* Update the factual core *)
+    let events_in_factual = if config.add_all_factual_events_involved_to_factual_core
+      then IntSet.union (factual_events_of_trace cf_subtrace) events_in_factual else events_in_factual in
+    let core = compress trace (IntSet.elements events_in_factual) config.compression_algorithm in
+
+    aux core cf_parts events_in_factual blacklist
+  )
+  in aux core [] (IntSet.singleton eoi) (IntSet.empty)
 
 let compute_extended_story trace eoi config : extended_story =
   Global_trace.reset_ids ();
