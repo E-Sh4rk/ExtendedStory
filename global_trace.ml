@@ -114,9 +114,11 @@ let add_counterfactual_step rtr (csteps,(cgi,ri,o)) cs =
   (*dbg ((string_of_int (!last_cf_id - 1))^": "^(get_step_name (get_model rtr) s "undefined")) ;*)
   last_cf_id := !last_cf_id - 1 ;
   (s::csteps,((!last_cf_id,o)::cgi,ri,o+1))
-  | Resimulation.Factual_did_not_happen (_,_) ->
+  | Resimulation.Factual_did_not_happen (_,s) ->
+  assert (s = get_step rtr ri) ;
   set_order rtr ri o ; (csteps,(cgi,ri+1,o+1))
   | Resimulation.Factual_happened s ->
+  assert (s = get_step rtr ri) ;
   set_order rtr ri o ;
   (s::csteps,((get_global_id rtr ri,o)::cgi,ri+1,o+1))
 
@@ -155,9 +157,18 @@ let get_var_infos ((_,vi),_) = vi
 
 let get_history ((_,vi),_) var = Causal_core.get_modifications_history var vi
 
+(* Misc *)
+let reset_ids () = last_cf_id := 0 ; next_f_id := 0
+
+let copy ((te,vi),gi) = ((te,vi),Array.copy gi)
+
 (* Printing functions *)
 let print_core tr fmt core =
   List.iter (fun i -> Format.fprintf fmt "%d ; " (get_global_id tr i)) core
 let print fmt tr =
   let core = n_first_intergers (length tr) in
   List.iter (fun i -> Format.fprintf fmt "%d ; " (get_global_id tr i)) core
+let print_full fmt tr =
+  let core = n_first_intergers (length tr) in
+  List.iter (fun i -> Format.fprintf fmt "%d (%d,%d)\n" i (get_global_id tr i) (get_order tr i)) core ;
+  Format.fprintf fmt "------------------"

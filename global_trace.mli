@@ -29,5 +29,9 @@ val get_actions : t -> int -> Grid.constr list
 val get_var_infos : t -> Causal_core.var_info_table
 val get_history : t  -> 'a Grid.var -> History.t
 
+val reset_ids : unit -> unit
+val copy : t -> t
+
 val print_core : t -> Format.formatter -> int list -> unit
 val print : Format.formatter -> t -> unit
+val print_full : Format.formatter -> t -> unit

@@ -51,7 +51,7 @@ let resimulate_and_sample trace nb max_rejections eoi block_pred stop_pred =
     then aux n (nb_rej+1) nb_failed wit
     else if cf_trace_succeed (get_global_id trace eoi) cf_trace then
     aux (n-1) nb_rej nb_failed wit
-    else aux (n-1) nb_rej (nb_failed+1) (Some cf_trace)
+    else aux (n-1) nb_rej (nb_failed+1) (Some (copy trace,cf_trace))
   in aux nb 0 0 None
 
 let rec last_inhibitive_event_before trace index constr =
@@ -114,7 +114,10 @@ let find_inhibitive_arrows trace1 trace2 follow_core eoi1 =
     let act = activation_event_between trace1 follow_core (index1_eq-1) dest c in
     match act with
     | None ->
-    (*dbg (Format.asprintf "Inh : %d (%d) -> %d (%d)" src (get_global_id trace2 src) dest (get_global_id trace1 dest)) ;*)
+    (*dbg (Format.asprintf "Inh : %d (%d,%d) -> %d (%d,%d)" src (get_global_id trace2 src) (get_order trace2 src)
+    dest (get_global_id trace1 dest) (get_order trace1 dest)) ;*)
+    assert ((get_global_id trace2 src < 0 && get_global_id trace1 dest >= 0)
+         || (get_global_id trace2 src >= 0 && get_global_id trace1 dest < 0));
     [Inhibition (src,c,dest)]
     | Some i -> aux i
   and aux dest =
@@ -153,14 +156,14 @@ let factual_events_of_trace trace =
     (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
     (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)
     logs (Format.asprintf "%a. Resimulating..." Resimulator_interface.print_short interventions) ;
-    let (nb_samples,nb_rej,nb_failed,cf_trace) = resimulate_and_sample trace config.nb_samples config.max_rejections eoi interventions scs in
+    let (nb_samples,nb_rej,nb_failed,wit) = resimulate_and_sample trace config.nb_samples config.max_rejections eoi interventions scs in
     let ratio = if nb_samples > 0 then 1.0 -. (float_of_int nb_failed)/.(float_of_int nb_samples) else 1.0 in
     logs ((string_of_int nb_rej)^" rejected. Ratio : "^(string_of_float ratio)) ;
     if ratio >= config.threshold || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
     else
     (
       logs "Computing counterfactual experiment..." ;
-      let cf_trace = match cf_trace with Some ctrace -> ctrace | None -> assert false in
+      let (trace,cf_trace) = match wit with Some wit -> wit | None -> assert false in
       (* Find the inhibitors of eoi in the cf trace, and eventually filter them. *)
       let reasons = find_inhibitive_arrows trace cf_trace (Some (IntSet.of_list core)) eoi in
       let inhibitors_cf = List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
@@ -213,6 +216,7 @@ let factual_events_of_trace trace =
    in aux core [] (IntSet.singleton eoi)
 
 let compute_extended_story trace eoi config : extended_story =
+  Global_trace.reset_ids ();
   let trace = new_reference_trace trace in
   (*dbg (Format.asprintf "Trace length : %d" (length trace)) ;*)
   (*dbg (Format.asprintf "EOI : %d" eoi) ;*)
