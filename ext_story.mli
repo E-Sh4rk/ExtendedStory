@@ -5,7 +5,7 @@ type extended_story = Global_trace.t * (cf_part list) (* (subtrace, counterfactu
 type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
-  heuristic    : Global_trace.t -> int list -> int -> Resimulator_interface.interventions;
+  heuristic    : Global_trace.t -> Ext_tools.IntSet.t -> int list -> int -> Resimulator_interface.interventions;
   nb_samples   : int;
   max_rejections   : int;
   threshold    : float;
