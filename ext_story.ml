@@ -7,6 +7,7 @@ type extended_story = Global_trace.t * (cf_part list) (* (subtrace, counterfactu
 
 type configuration =
 {
+  compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
   heuristic    : Global_trace.t -> int list -> int -> Resimulator_interface.interventions;
   nb_samples   : int;
   max_rejections   : int;
@@ -18,9 +19,9 @@ type configuration =
   add_all_factual_events_involved_to_factual_core : bool;
 }
 
-let compute_causal_core trace eois =
+let compress trace eois compression_algorithm =
   let eois = List.sort_uniq Pervasives.compare eois in
-  Causal_core.core_events (Causal_core.compute_causal_core (get_trace_explorer trace) (get_var_infos trace) eois)
+  compression_algorithm (get_trace_explorer trace) (get_var_infos trace) eois
 
 let cf_trace_rejected eoi trace cf_trace =
   let model = get_model trace in
@@ -178,7 +179,7 @@ let factual_events_of_trace trace =
         (* Find the inhibitors of cf_eois in the factual trace, and eventually filter them *)
         let cf_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_cf in
         let cf_pre_core = if config.precompute_cf_cores
-        then Some (IntSet.of_list (compute_causal_core cf_trace (IntSet.elements cf_eois)))
+        then Some (IntSet.of_list (compress cf_trace (IntSet.elements cf_eois) config.compression_algorithm))
         else None in
         let reasons = List.map (fun e -> find_inhibitive_arrows cf_trace trace cf_pre_core e) (IntSet.elements cf_eois) in
         let inhibitors_fc = List.map (fun reasons -> List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
@@ -193,7 +194,7 @@ let factual_events_of_trace trace =
         (List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_fc) in
         (* Compute the causal core associated with the cf events involved *)
         logs ((string_of_int (List.length inhibitions_ids))^" inhibition arrows found ! Computing new causal cores...") ;
-        let cf_core = compute_causal_core cf_trace (IntSet.elements cf_involved) in
+        let cf_core = compress cf_trace (IntSet.elements cf_involved) config.compression_algorithm in
         let cf_subtrace = subtrace_of cf_trace cf_core in
         (* Retrieving events to add to the factual core : factual events with an inhibition arrow
         + other factual events of the counterfactual core if we want to have more links with the factual core *)
@@ -205,7 +206,7 @@ let factual_events_of_trace trace =
       end
       in
       (* Update the factual core *)
-      let core = compute_causal_core trace (IntSet.elements events_in_factual) in
+      let core = compress trace (IntSet.elements events_in_factual) config.compression_algorithm in
       let cf_parts = match cf_part with None -> cf_parts | Some cfp -> cfp::cf_parts in
       aux core cf_parts events_in_factual
     )
@@ -217,9 +218,12 @@ let compute_extended_story trace eoi config : extended_story =
   (*dbg (Format.asprintf "EOI : %d" eoi) ;*)
   (* Computing factual causal core *)
   logs "Computing initial factual core..." ;
-  let core = compute_causal_core trace [eoi] in
+  let core = compress trace [eoi] config.compression_algorithm in
   (*dbg (Format.asprintf "Core : %a" (print_core trace) core) ;*)
   (* Adding counterfactual parts *)
   let (core, cf_parts) = add_cf_parts trace eoi core config in
   let subtrace = subtrace_of trace core in
   logs "Extended story complete !" ; (subtrace, cf_parts)
+
+let kaflow_compression tr vi eois =
+  Causal_core.core_events (Causal_core.compute_causal_core tr vi eois)
