@@ -10,7 +10,7 @@ type configuration =
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
   heuristic    : Global_trace.t -> Ext_tools.IntSet.t -> int list -> int -> Resimulator_interface.interventions;
   nb_samples   : int;
-  reject_more_samples : bool ;
+  reject_bad_samples : bool ;
   threshold    : float;
   max_counterfactual_parts : int;
   keep_rejected_cf_parts : bool;
@@ -26,7 +26,7 @@ let compress trace eois compression_algorithm =
 
 (* ----- /!\ HEURISTICS /!\ ----- *)
 
-let cf_trace_rejected_ext eoi core trace cf_trace =
+let cf_trace_rejected_1 eoi core trace cf_trace =
   let not_happened = List.filter (fun i -> search_global_id cf_trace (get_global_id trace i) = None) core in
   let rules_not_happened = List.filter (fun i -> match get_step trace i with Trace.Rule _ -> true | _ -> false) not_happened in
   let similar f cf = if get_rule_id (get_step trace f) (-1) <> get_rule_id (get_step cf_trace cf) (-1) then false
@@ -43,29 +43,28 @@ let cf_trace_rejected_ext eoi core trace cf_trace =
   let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
   aux cf_index_eq
 
-let cf_trace_rejected_basic eoi core trace cf_trace =
-  let model = get_model trace in
-  let name = get_step_name model (get_step trace eoi) "" in
-  let agents_modified = List.fold_left (fun acc i -> ASet.union acc (agents_involved (get_actions trace i))) ASet.empty core in
-  let cf_index_eq = search_last_before_order cf_trace (get_order trace eoi) in
-  let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
-  let rec aux i = match i with
-    | i when i < 0 -> false
-    | i when get_step_name model (get_step cf_trace i) "" = name
-    && get_global_id cf_trace i < 0 
-    && not (ASet.is_empty (ASet.inter agents_modified (agents_involved (get_tests cf_trace i)))) -> true
-    | i -> aux (i-1)
-  in aux cf_index_eq
-
-let cf_trace_rejected eoi core trace cf_trace ext =
-  if ext then cf_trace_rejected_basic eoi core trace cf_trace || cf_trace_rejected_ext eoi core trace cf_trace
-  else cf_trace_rejected_basic eoi core trace cf_trace
+let cf_trace_rejected eoi core trace cf_trace enabled =
+  if enabled then cf_trace_rejected_1 eoi core trace cf_trace
+  else false
 
 (* ----- END HEURISTICS ----- *)
 
 let cf_trace_succeed eoi trace cf_trace =
+
   match search_global_id cf_trace (get_global_id trace eoi) with
-  | None -> false
+  | None ->
+  (
+    let model = get_model trace in
+    let name = get_step_name model (get_step trace eoi) "" in
+    let cf_index_eq = search_last_before_order cf_trace (get_order trace eoi) in
+    let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
+    let rec aux i = match i with
+      | i when i < 0 -> false
+      | i when get_step_name model (get_step cf_trace i) "" = name
+      && get_global_id cf_trace i < 0 -> true
+      | i -> aux (i-1)
+  in aux cf_index_eq
+  )
   | Some _ -> true
 
 let resimulate_and_sample trace eoi core block_pred stop_pred config =
@@ -76,7 +75,7 @@ let resimulate_and_sample trace eoi core block_pred stop_pred config =
     if cf_trace_succeed eoi trace cf_trace then
     aux (n-1) nb_failed wit_rej wit_ok
 
-    else if cf_trace_rejected eoi core trace cf_trace config.reject_more_samples
+    else if cf_trace_rejected eoi core trace cf_trace config.reject_bad_samples
     then aux (n-1) (nb_failed+1) (Some (copy trace,cf_trace)) wit_ok
     
     else aux (n-1) (nb_failed+1) wit_rej (Some (copy trace,cf_trace))
