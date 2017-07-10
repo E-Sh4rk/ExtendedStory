@@ -39,7 +39,9 @@ let cf_trace_rejected_ext eoi core trace cf_trace =
   | i when rejected i -> true
   | i -> aux (i-1)
   in
-  aux eoi
+  let cf_index_eq = search_last_before_order cf_trace (get_order trace eoi) in
+  let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
+  aux cf_index_eq
 
 let cf_trace_rejected_basic eoi core trace cf_trace =
   let model = get_model trace in
@@ -56,7 +58,7 @@ let cf_trace_rejected_basic eoi core trace cf_trace =
   in aux cf_index_eq
 
 let cf_trace_rejected eoi core trace cf_trace ext =
-  if ext then cf_trace_rejected_basic eoi core trace cf_trace && cf_trace_rejected_ext eoi core trace cf_trace
+  if ext then cf_trace_rejected_basic eoi core trace cf_trace || cf_trace_rejected_ext eoi core trace cf_trace
   else cf_trace_rejected_basic eoi core trace cf_trace
 
 (* ----- END HEURISTICS ----- *)
