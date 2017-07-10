@@ -142,12 +142,15 @@ let find_inhibitive_arrows trace1 trace2 follow_core eoi1 =
   | None -> aux eoi1
   | Some _ -> []
 
-let choose_arrows arrows nb =
-  let cmp (s,_,d) (s',_,d') = match Pervasives.compare d d' with
-  | 0 -> Pervasives.compare s s'
+let sort_uniq_inhibition_arrows arrows =
+  let cmp (s,c,d) (s',c',d') =
+    match Pervasives.compare d d' with
+  | 0 -> (match Pervasives.compare s s' with 0 -> Pervasives.compare c c' | n -> n)
   | n -> n
-  in
-  let arrows = List.sort cmp arrows in
+  in List.sort_uniq cmp arrows
+
+let choose_arrows arrows nb =
+  let arrows = sort_uniq_inhibition_arrows arrows in
   cut_after_index (nb-1) arrows
 
 let factual_events_of_trace trace =
@@ -203,7 +206,7 @@ let find_cf_part trace cf_trace eois events_in_factual config =
       let events_in_cf = IntSet.union events_in_cf cf_involved in
       let result = List.map (fun e -> aux [e] events_in_factual events_in_cf) (IntSet.elements f_eois) in
       List.fold_left (fun (acc1,acc2,acc3,acc4) (e1,e2,e3,e4) -> (IntSet.union acc1 e1, IntSet.union acc2 e2, acc3@e3, IntSet.union acc4 e4))
-        (events_in_factual,events_in_cf,inhibitions_ids,blacklist) result
+        (events_in_factual,events_in_cf,sort_uniq_inhibition_arrows inhibitions_ids,blacklist) result
     end
   in aux eois events_in_factual IntSet.empty
 
