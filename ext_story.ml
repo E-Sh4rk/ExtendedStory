@@ -9,6 +9,7 @@ type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
   heuristic    : Global_trace.t -> Ext_tools.IntSet.t -> int list -> int -> Resimulator_interface.interventions;
+  analyse_all_core_events : bool ;
   nb_samples   : int;
   max_rejections   : int;
   threshold    : float;
@@ -23,31 +24,38 @@ let compress trace eois compression_algorithm =
   let eois = List.sort_uniq Pervasives.compare eois in
   compression_algorithm (get_trace_explorer trace) (get_var_infos trace) eois
 
-let cf_trace_rejected eoi trace cf_trace =
-  let model = get_model trace in
-  let name = get_step_name model (get_step trace eoi) "" in
-  let cf_index_eq = search_last_before_order cf_trace (get_order trace eoi) in
-  let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
-  let rec aux i = match i with
-  | i when i < 0 -> false
-  | i when get_step_name model (get_step cf_trace i) "" = name
-  && get_global_id cf_trace i < 0 -> true
-  | i -> aux (i-1)
-  in aux cf_index_eq
+let rec cf_trace_rejected eois trace cf_trace =
+  let rejected eoi =
+    let model = get_model trace in
+    let name = get_step_name model (get_step trace eoi) "" in
+    let tested = agents_involved (get_tests trace eoi) in
+    let cf_index_eq = search_last_before_order cf_trace (get_order trace eoi) in
+    let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
+    let rec aux i = match i with
+      | i when i < 0 -> false
+      | i when get_step_name model (get_step cf_trace i) "" = name
+      && get_global_id cf_trace i < 0 
+      && not (ASet.is_empty (ASet.inter tested (agents_involved (get_tests cf_trace i)))) -> true
+      | i -> aux (i-1)
+    in aux cf_index_eq
+  in match eois with
+  | [] -> false
+  | e::_ when rejected e -> true
+  | _::lst -> cf_trace_rejected lst trace cf_trace
 
 let cf_trace_succeed eoi_id cf_trace =
   match search_global_id cf_trace eoi_id with
   | None -> false
   | Some _ -> true
 
-let resimulate_and_sample trace nb max_rejections eoi block_pred stop_pred =
+let resimulate_and_sample trace nb max_rejections eoi eois block_pred stop_pred =
   let rec aux n nb_rej nb_failed wit = match n, nb_rej with
     | 0, _ -> (nb,nb_rej,nb_failed,wit)
     | n, nb_rej when nb_rej > max_rejections -> (nb-n,nb_rej,nb_failed,wit)
     | n, nb_rej ->
     let cf_trace = resimulate block_pred stop_pred trace in
     (*dbg (Format.asprintf "%a" Global_trace.print cf_trace) ;*)
-    if cf_trace_rejected eoi trace cf_trace
+    if cf_trace_rejected eois trace cf_trace
     then aux n (nb_rej+1) nb_failed wit
     else if cf_trace_succeed (get_global_id trace eoi) cf_trace then
     aux (n-1) nb_rej nb_failed wit
@@ -146,15 +154,15 @@ let factual_events_of_trace trace =
   | i -> aux acc (i-1) in
   aux (IntSet.empty) ((length trace)-1)
 
-let find_cf_part trace cf_trace eoi events_in_factual config =
-  let rec aux dest events_in_factual events_in_cf =
+let find_cf_part trace cf_trace eois events_in_factual config =
+  let rec aux eois events_in_factual events_in_cf =
     (* Find the inhibitors of eoi in the cf trace, and eventually filter them. *)
     (* If there is a direct cause that has been blocked directly, we blacklist it and we try again. *)
-    let events_in_factual = IntSet.add dest events_in_factual in
+    let events_in_factual = IntSet.union (IntSet.of_list eois) events_in_factual in
     let pre_core = if config.precompute_cores
       then Some (IntSet.of_list (compress trace (IntSet.elements events_in_factual) config.compression_algorithm))
       else None in
-    let reasons = find_inhibitive_arrows trace cf_trace pre_core dest in
+    let reasons = List.flatten (List.map (fun eoi -> find_inhibitive_arrows trace cf_trace pre_core eoi) eois) in
 
     let dummy_direct_causes = List.map (function No_reason i -> i | Inhibition _ -> assert false)
       (List.filter (function No_reason _ -> true | Inhibition _ -> false) reasons) in
@@ -190,55 +198,57 @@ let find_cf_part trace cf_trace eoi events_in_factual config =
       (* Recursivity powaaaa ! *)
       let events_in_factual = IntSet.union events_in_factual f_involved in
       let events_in_cf = IntSet.union events_in_cf cf_involved in
-      let result = List.map (fun e -> aux e events_in_factual events_in_cf) (IntSet.elements f_eois) in
+      let result = List.map (fun e -> aux [e] events_in_factual events_in_cf) (IntSet.elements f_eois) in
       List.fold_left (fun (acc1,acc2,acc3,acc4) (e1,e2,e3,e4) -> (IntSet.union acc1 e1, IntSet.union acc2 e2, acc3@e3, IntSet.union acc4 e4))
         (events_in_factual,events_in_cf,inhibitions_ids,blacklist) result
     end
-  in aux eoi events_in_factual IntSet.empty
+  in aux eois events_in_factual IntSet.empty
 
 let add_cf_parts trace eoi core config =
   let rec aux core cf_parts events_in_factual blacklist =
-  (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
-  logs "Determining interventions (heuristic)..." ;
-  let interventions = config.heuristic trace blacklist core eoi in
-  (*dbg (Format.asprintf "%a" Resimulator_interface.print interventions) ;*)
-  let scs = [Event_has_happened eoi;Event_has_not_happened eoi] in
-  (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
-  (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)
-  logs (Format.asprintf "%a. Resimulating..." Resimulator_interface.print_short interventions) ;
-  let (nb_samples,nb_rej,nb_failed,wit) = resimulate_and_sample trace config.nb_samples config.max_rejections eoi interventions scs in
-  let ratio = if nb_samples > 0 then 1.0 -. (float_of_int nb_failed)/.(float_of_int nb_samples) else 1.0 in
-  logs ((string_of_int nb_rej)^" rejected. Ratio : "^(string_of_float ratio)) ;
-  if ratio >= config.threshold || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
-  else
-  (
-    logs "Computing counterfactual experiment..." ;
-    let (trace,cf_trace) = match wit with Some wit -> wit | None -> assert false in
-
-    (* Compute the counterfactual part *)
-    let (events_in_factual,events_in_cf,inhibitions_ids,blacklist2) = find_cf_part trace cf_trace eoi events_in_factual config in
-    let blacklist = IntSet.union blacklist blacklist2 in
-    let (cf_part,events_in_factual) = if List.length inhibitions_ids = 0 then 
-    (
-      logs ("No inhibition found ! Skipping...") ;
-      (None,events_in_factual)
-    )
+    let eois = if config.analyse_all_core_events then core else [eoi] in
+    (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
+    logs "Determining interventions (heuristic)..." ;
+    let interventions = config.heuristic trace blacklist core eoi in
+    (*dbg (Format.asprintf "%a" Resimulator_interface.print interventions) ;*)
+    let scs = [Event_has_happened eoi;Event_has_not_happened eoi] in
+    (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
+    (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)
+    logs (Format.asprintf "%a. Resimulating..." Resimulator_interface.print_short interventions) ;
+    let (nb_samples,nb_rej,nb_failed,wit) = resimulate_and_sample trace config.nb_samples config.max_rejections eoi eois interventions scs in
+    let ratio = if nb_samples > 0 then 1.0 -. (float_of_int nb_failed)/.(float_of_int nb_samples) else 1.0 in
+    logs ((string_of_int nb_rej)^" rejected. Ratio : "^(string_of_float ratio)) ;
+    if ratio >= config.threshold || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
     else
     (
-      (* Compute the counterfactual causal core *)
-      logs ((string_of_int (List.length inhibitions_ids))^" inhibition arrows found ! Computing new causal cores...") ;
-      let cf_core = compress cf_trace (IntSet.elements events_in_cf) config.compression_algorithm in
-      let cf_subtrace = subtrace_of cf_trace cf_core in
-      let events_in_factual = if config.add_all_factual_events_involved_to_factual_core
-      then IntSet.union (factual_events_of_trace cf_subtrace) events_in_factual else events_in_factual in
-      (Some (cf_subtrace,inhibitions_ids), events_in_factual)
-    ) in
-    let cf_parts = match cf_part with None -> cf_parts | Some cfp -> cfp::cf_parts in
-    (* Update the factual core *)
-    let core = compress trace (IntSet.elements events_in_factual) config.compression_algorithm in
+      logs "Computing counterfactual experiment..." ;
+      let (trace,cf_trace) = match wit with Some wit -> wit | None -> assert false in
 
-    aux core cf_parts events_in_factual blacklist
-  )
+      (* Compute the counterfactual part *)
+      let (events_in_factual,events_in_cf,inhibitions_ids,blacklist2) = find_cf_part trace cf_trace eois events_in_factual config in
+      let blacklist = IntSet.union blacklist blacklist2 in
+      let (cf_part,events_in_factual) = if List.length inhibitions_ids = 0 then 
+      (
+        logs ("No inhibition found ! Skipping...") ;
+        (None,events_in_factual)
+      )
+      else
+      (
+        (* Compute the counterfactual causal core *)
+        logs ((string_of_int (List.length inhibitions_ids))^" inhibition arrows found ! Computing new causal cores...") ;
+        let cf_core = compress cf_trace (IntSet.elements events_in_cf) config.compression_algorithm in
+        let cf_subtrace = subtrace_of cf_trace cf_core in
+        let events_in_factual = if config.add_all_factual_events_involved_to_factual_core
+        then IntSet.union (factual_events_of_trace cf_subtrace) events_in_factual else events_in_factual in
+        (Some (cf_subtrace,inhibitions_ids), events_in_factual)
+      ) in
+      let cf_parts = match cf_part with None -> cf_parts | Some cfp -> cfp::cf_parts in
+      (* Update the factual core *)
+      let core = compress trace (IntSet.elements events_in_factual) config.compression_algorithm in
+
+      (*List.iter (fun i -> Format.printf "%d ; " i) (IntSet.elements blacklist) ; Format.printf "\n" ;*)
+      aux core cf_parts events_in_factual blacklist
+    )
   in aux core [] (IntSet.singleton eoi) (IntSet.empty)
 
 let compute_extended_story trace eoi config : extended_story =

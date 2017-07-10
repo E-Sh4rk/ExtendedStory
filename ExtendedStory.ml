@@ -51,6 +51,7 @@ let main () = (*Printexc.record_backtrace true ;*)
     {
       compression_algorithm = kaflow_compression;
       heuristic    = Heuristics.heuristic_1 Heuristics.Persistence;
+      analyse_all_core_events = false;
       nb_samples   = 10;
       max_rejections = 10;
       threshold    = 0.95;
