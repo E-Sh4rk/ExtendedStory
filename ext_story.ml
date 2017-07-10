@@ -132,8 +132,8 @@ let find_inhibitive_arrows trace1 trace2 follow_core eoi1 =
   in aux eoi1
 
 let choose_arrows arrows nb =
-  let cmp (s,_,d) (s',_,d') = match Pervasives.compare s s' with
-  | 0 -> Pervasives.compare d d'
+  let cmp (s,_,d) (s',_,d') = match Pervasives.compare d d' with
+  | 0 -> Pervasives.compare s s'
   | n -> n
   in
   let arrows = List.sort cmp arrows in

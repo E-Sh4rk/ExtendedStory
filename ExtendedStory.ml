@@ -56,7 +56,7 @@ let main () = (*Printexc.record_backtrace true ;*)
       threshold    = 0.95;
       max_counterfactual_parts = 2 ;
       precompute_cores = true ;
-      max_cf_inhibition_arrows = 1;
+      max_cf_inhibition_arrows = 2;
       max_fc_inhibition_arrows_per_inhibator = 1;
       add_all_factual_events_involved_to_factual_core = false;
     } in
