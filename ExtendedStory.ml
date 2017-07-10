@@ -51,14 +51,14 @@ let main () = (*Printexc.record_backtrace true ;*)
     {
       compression_algorithm = kaflow_compression;
       heuristic    = Heuristics.heuristic_1 Heuristics.Persistence;
-      analyse_all_core_events = false;
+      analyse_all_core_events = true;
       nb_samples   = 10;
       max_rejections = 10;
       threshold    = 0.95;
       max_counterfactual_parts = 2 ;
       precompute_cores = true ;
       max_cf_inhibition_arrows = 2;
-      max_fc_inhibition_arrows_per_inhibator = 1;
+      max_fc_inhibition_arrows_per_inhibator = 2;
       add_all_factual_events_involved_to_factual_core = false;
     } in
     let eoi = ref (-1) in

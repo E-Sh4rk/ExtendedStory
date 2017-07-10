@@ -137,7 +137,10 @@ let find_inhibitive_arrows trace1 trace2 follow_core eoi1 =
     match inh with
     | [] -> [No_reason (dest)]
     | inh -> List.flatten (List.map rewind inh)
-  in aux eoi1
+  in
+  match search_global_id trace2 (get_global_id trace1 eoi1) with
+  | None -> aux eoi1
+  | Some _ -> []
 
 let choose_arrows arrows nb =
   let cmp (s,_,d) (s',_,d') = match Pervasives.compare d d' with
@@ -223,6 +226,7 @@ let add_cf_parts trace eoi core config =
     (
       logs "Computing counterfactual experiment..." ;
       let (trace,cf_trace) = match wit with Some wit -> wit | None -> assert false in
+      (*dbg (Format.asprintf "%a" Global_trace.print cf_trace) ;*)
 
       (* Compute the counterfactual part *)
       let (events_in_factual,events_in_cf,inhibitions_ids,blacklist2) = find_cf_part trace cf_trace eois events_in_factual config in
@@ -246,7 +250,7 @@ let add_cf_parts trace eoi core config =
       (* Update the factual core *)
       let core = compress trace (IntSet.elements events_in_factual) config.compression_algorithm in
 
-      (*List.iter (fun i -> Format.printf "%d ; " i) (IntSet.elements blacklist) ; Format.printf "\n" ;*)
+      (*dbg (Format.asprintf "%a\n" (fun fmt set -> List.iter (fun i -> Format.fprintf fmt "%d ; " i) (IntSet.elements set)) blacklist) ;*)
       aux core cf_parts events_in_factual blacklist
     )
   in aux core [] (IntSet.singleton eoi) (IntSet.empty)
