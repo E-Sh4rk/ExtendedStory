@@ -10,7 +10,7 @@ type configuration =
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
   heuristic    : Global_trace.t -> Ext_tools.IntSet.t -> int list -> int -> Resimulator_interface.interventions;
   nb_samples   : int;
-  reject_bad_samples : bool ;
+  trace_rejection_heuristic : Global_trace.t -> Global_trace.t -> int list -> int -> bool ;
   threshold    : float;
   max_counterfactual_parts : int;
   keep_rejected_cf_parts : bool;
@@ -23,31 +23,6 @@ type configuration =
 let compress trace eois compression_algorithm =
   let eois = List.sort_uniq Pervasives.compare eois in
   compression_algorithm (get_trace_explorer trace) (get_var_infos trace) eois
-
-(* ----- /!\ HEURISTICS /!\ ----- *)
-
-let cf_trace_rejected_1 eoi core trace cf_trace =
-  let not_happened = List.filter (fun i -> search_global_id cf_trace (get_global_id trace i) = None) core in
-  let rules_not_happened = List.filter (fun i -> match get_step trace i with Trace.Rule _ -> true | _ -> false) not_happened in
-  let similar f cf = if get_rule_id (get_step trace f) (-1) <> get_rule_id (get_step cf_trace cf) (-1) then false
-    else if ASet.is_empty (ASet.inter (agents_involved (get_actions trace f)) (agents_involved (get_actions cf_trace cf)) ) then false
-    else true
-  in
-  let rejected cf = List.exists (fun f -> similar f cf) rules_not_happened in
-  let rec aux i = match i with
-  | i when i < 0 -> false
-  | i when rejected i -> true
-  | i -> aux (i-1)
-  in
-  let cf_index_eq = search_last_before_order cf_trace (get_order trace eoi) in
-  let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
-  aux cf_index_eq
-
-let cf_trace_rejected eoi core trace cf_trace enabled =
-  if enabled then cf_trace_rejected_1 eoi core trace cf_trace
-  else false
-
-(* ----- END HEURISTICS ----- *)
 
 let cf_trace_succeed eoi trace cf_trace =
 
@@ -75,7 +50,7 @@ let resimulate_and_sample trace eoi core block_pred stop_pred config =
     if cf_trace_succeed eoi trace cf_trace then
     aux (n-1) nb_failed wit_rej wit_ok
 
-    else if cf_trace_rejected eoi core trace cf_trace config.reject_bad_samples
+    else if config.trace_rejection_heuristic trace cf_trace core eoi
     then aux (n-1) (nb_failed+1) (Some (copy trace,cf_trace)) wit_ok
     
     else aux (n-1) (nb_failed+1) wit_rej (Some (copy trace,cf_trace))

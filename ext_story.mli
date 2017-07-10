@@ -7,7 +7,7 @@ type configuration =
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
   heuristic    : Global_trace.t -> Ext_tools.IntSet.t -> int list -> int -> Resimulator_interface.interventions;
   nb_samples   : int;
-  reject_bad_samples : bool ;
+  trace_rejection_heuristic : Global_trace.t -> Global_trace.t -> int list -> int -> bool ;
   threshold    : float;
   max_counterfactual_parts : int;
   keep_rejected_cf_parts : bool;

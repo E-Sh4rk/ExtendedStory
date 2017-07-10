@@ -2,6 +2,8 @@ open Ext_tools
 open Resimulator_interface
 open Global_trace
 
+(* ----------------------------------- BLOCKING -------------------------------------- *)
+
 (* HEURISTICS SHOULD NOT BLOCK EVENTS THAT ARE IN THE BLACKLIST ! *)
 type persistence = No_persistence | Persistence | Full_persistence
 
@@ -90,3 +92,24 @@ let heuristic_block_all pers trace blacklist core eoi : interventions =
   else if pers = No_persistence then let (f,_) = persistent in (f,[])
   else let (f,cf) = persistent in
   (f,List.map (function Blocked_rule (rid,inv,_,_) -> Blocked_rule (rid,inv,None,None) | _ -> assert false) cf)
+
+(* ----------------------------------- REJECTION -------------------------------------- *)
+
+let rejection_1 trace cf_trace core eoi =
+  let not_happened = List.filter (fun i -> search_global_id cf_trace (get_global_id trace i) = None) core in
+  let rules_not_happened = List.filter (fun i -> match get_step trace i with Trace.Rule _ -> true | _ -> false) not_happened in
+  let similar f cf = if get_rule_id (get_step trace f) (-1) <> get_rule_id (get_step cf_trace cf) (-1) then false
+    else if ASet.is_empty (ASet.inter (agents_involved (get_actions trace f)) (agents_involved (get_actions cf_trace cf)) ) then false
+    else true
+  in
+  let rejected cf = List.exists (fun f -> similar f cf) rules_not_happened in
+  let rec aux i = match i with
+  | i when i < 0 -> false
+  | i when rejected i -> true
+  | i -> aux (i-1)
+  in
+  let cf_index_eq = search_last_before_order cf_trace (get_order trace eoi) in
+  let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
+  aux cf_index_eq
+
+let rejection_accept_all _ _ _ _ = false
