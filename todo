@@ -1,4 +1,2 @@
 
-- Resimulation rejection :  reject only if the event has not happened in the counterfactual trace AND it has happened after, between the factual event and the eoi.
-- analyse_all_core_events -> reject_more_traces (don't find inhibition arrows for other events of the core)
-- In case of too many rejection : compute the cf part but keep only the blacklisted event?
+ -

@@ -63,3 +63,7 @@ let get_time_of_step ts default = match ts with
   -> infos.Trace.Simulation_info.story_time
   | Trace.Init _ -> 0.0
   | _ -> default
+
+let get_rule_id ts default = match ts with
+  | Trace.Rule (rid,_,_) -> rid
+  | _ -> default

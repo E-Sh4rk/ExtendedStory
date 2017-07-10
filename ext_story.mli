@@ -6,11 +6,11 @@ type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
   heuristic    : Global_trace.t -> Ext_tools.IntSet.t -> int list -> int -> Resimulator_interface.interventions;
-  analyse_all_core_events : bool ; (* Intensive !! Use only with small traces. *)
   nb_samples   : int;
-  max_rejections   : int;
+  reject_more_samples : bool ;
   threshold    : float;
   max_counterfactual_parts : int;
+  keep_rejected_cf_parts : bool;
   precompute_cores : bool; (* Improve inhibition searching results. *)
   max_cf_inhibition_arrows : int;
   max_fc_inhibition_arrows_per_inhibator : int;

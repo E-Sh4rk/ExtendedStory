@@ -56,9 +56,7 @@ let heuristic_1 pers trace blacklist core eoi : interventions =
   in
 
   let block_cf_events (i, lst) =
-    match get_step trace i with
-    | Trace.Rule (rid,_,_) -> List.map (fun (j,agent) -> Blocked_rule (rid, agent, None, Some j) ) lst
-    | _ -> assert false
+    List.map (fun (j,agent) -> Blocked_rule (get_rule_id (get_step trace i) (-1), agent, None, Some j) ) lst
   in
 
   let admissible = admissible_events trace (IntSet.union blacklist (IntSet.of_list core)) eoi in
@@ -80,12 +78,10 @@ let heuristic_block_all pers trace blacklist core eoi : interventions =
   let block_f_event (i, _) = i in
 
   let block_cf_events (i, inv) =
-    match get_step trace i with
-    | Trace.Rule (rid,_,_) -> Blocked_rule (rid, inv, None, next_core_event_that_test_an_agent_of trace core i inv)
-    | _ -> assert false in
+    Blocked_rule (get_rule_id (get_step trace i) (-1), inv, None, next_core_event_that_test_an_agent_of trace core i inv)
+  in
 
-  let agents_tested_in_core = List.fold_left
-  (fun acc i -> ASet.union acc (agents_involved (get_tests trace i))) ASet.empty core in
+  let agents_tested_in_core = List.fold_left (fun acc i -> ASet.union acc (agents_involved (get_tests trace i))) ASet.empty core in
   let events_to_block = admissible_events trace (IntSet.union blacklist (IntSet.of_list core)) eoi in
   let events_to_block = List.map (involved agents_tested_in_core) events_to_block in
   let events_to_block = List.filter (fun (i,inv) -> not (ASet.is_empty inv)) events_to_block in

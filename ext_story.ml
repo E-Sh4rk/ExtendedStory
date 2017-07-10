@@ -9,11 +9,11 @@ type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
   heuristic    : Global_trace.t -> Ext_tools.IntSet.t -> int list -> int -> Resimulator_interface.interventions;
-  analyse_all_core_events : bool ;
   nb_samples   : int;
-  max_rejections   : int;
+  reject_more_samples : bool ;
   threshold    : float;
   max_counterfactual_parts : int;
+  keep_rejected_cf_parts : bool;
   precompute_cores : bool;
   max_cf_inhibition_arrows : int;
   max_fc_inhibition_arrows_per_inhibator : int;
@@ -24,43 +24,61 @@ let compress trace eois compression_algorithm =
   let eois = List.sort_uniq Pervasives.compare eois in
   compression_algorithm (get_trace_explorer trace) (get_var_infos trace) eois
 
-let rec cf_trace_rejected eois trace cf_trace =
-  let rejected eoi =
-    let model = get_model trace in
-    let name = get_step_name model (get_step trace eoi) "" in
-    let tested = agents_involved (get_tests trace eoi) in
-    let cf_index_eq = search_last_before_order cf_trace (get_order trace eoi) in
-    let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
-    let rec aux i = match i with
-      | i when i < 0 -> false
-      | i when get_step_name model (get_step cf_trace i) "" = name
-      && get_global_id cf_trace i < 0 
-      && not (ASet.is_empty (ASet.inter tested (agents_involved (get_tests cf_trace i)))) -> true
-      | i -> aux (i-1)
-    in aux cf_index_eq
-  in match eois with
-  | [] -> false
-  | e::_ when rejected e -> true
-  | _::lst -> cf_trace_rejected lst trace cf_trace
+(* ----- /!\ HEURISTICS /!\ ----- *)
 
-let cf_trace_succeed eoi_id cf_trace =
-  match search_global_id cf_trace eoi_id with
+let cf_trace_rejected_ext eoi core trace cf_trace =
+  let not_happened = List.filter (fun i -> search_global_id cf_trace (get_global_id trace i) = None) core in
+  let rules_not_happened = List.filter (fun i -> match get_step trace i with Trace.Rule _ -> true | _ -> false) not_happened in
+  let similar f cf = if get_rule_id (get_step trace f) (-1) <> get_rule_id (get_step cf_trace cf) (-1) then false
+    else if ASet.is_empty (ASet.inter (agents_involved (get_actions trace f)) (agents_involved (get_actions cf_trace cf)) ) then false
+    else true
+  in
+  let rejected cf = List.exists (fun f -> similar f cf) rules_not_happened in
+  let rec aux i = match i with
+  | i when i < 0 -> false
+  | i when rejected i -> true
+  | i -> aux (i-1)
+  in
+  aux eoi
+
+let cf_trace_rejected_basic eoi core trace cf_trace =
+  let model = get_model trace in
+  let name = get_step_name model (get_step trace eoi) "" in
+  let agents_modified = List.fold_left (fun acc i -> ASet.union acc (agents_involved (get_actions trace i))) ASet.empty core in
+  let cf_index_eq = search_last_before_order cf_trace (get_order trace eoi) in
+  let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
+  let rec aux i = match i with
+    | i when i < 0 -> false
+    | i when get_step_name model (get_step cf_trace i) "" = name
+    && get_global_id cf_trace i < 0 
+    && not (ASet.is_empty (ASet.inter agents_modified (agents_involved (get_tests cf_trace i)))) -> true
+    | i -> aux (i-1)
+  in aux cf_index_eq
+
+let cf_trace_rejected eoi core trace cf_trace ext =
+  if ext then cf_trace_rejected_basic eoi core trace cf_trace && cf_trace_rejected_ext eoi core trace cf_trace
+  else cf_trace_rejected_basic eoi core trace cf_trace
+
+(* ----- END HEURISTICS ----- *)
+
+let cf_trace_succeed eoi trace cf_trace =
+  match search_global_id cf_trace (get_global_id trace eoi) with
   | None -> false
   | Some _ -> true
 
-let resimulate_and_sample trace nb max_rejections eoi eois block_pred stop_pred =
-  let rec aux n nb_rej nb_failed wit = match n, nb_rej with
-    | 0, _ -> (nb,nb_rej,nb_failed,wit)
-    | n, nb_rej when nb_rej > max_rejections -> (nb-n,nb_rej,nb_failed,wit)
-    | n, nb_rej ->
-    let cf_trace = resimulate block_pred stop_pred trace in
+let resimulate_and_sample trace eoi core block_pred stop_pred config =
+  let rec aux n nb_failed wit_rej wit_ok = match n with
+    | 0 -> (nb_failed,wit_rej,wit_ok)
+    | n -> let cf_trace = resimulate block_pred stop_pred trace in
     (*dbg (Format.asprintf "%a" Global_trace.print cf_trace) ;*)
-    if cf_trace_rejected eois trace cf_trace
-    then aux n (nb_rej+1) nb_failed wit
-    else if cf_trace_succeed (get_global_id trace eoi) cf_trace then
-    aux (n-1) nb_rej nb_failed wit
-    else aux (n-1) nb_rej (nb_failed+1) (Some (copy trace,cf_trace))
-  in aux nb 0 0 None
+    if cf_trace_succeed eoi trace cf_trace then
+    aux (n-1) nb_failed wit_rej wit_ok
+
+    else if cf_trace_rejected eoi core trace cf_trace config.reject_more_samples
+    then aux (n-1) (nb_failed+1) (Some (copy trace,cf_trace)) wit_ok
+    
+    else aux (n-1) (nb_failed+1) wit_rej (Some (copy trace,cf_trace))
+  in aux config.nb_samples 0 None None
 
 let rec last_inhibitive_event_before trace index constr =
   let Grid.Constr (var, _) = constr in
@@ -160,15 +178,15 @@ let factual_events_of_trace trace =
   | i -> aux acc (i-1) in
   aux (IntSet.empty) ((length trace)-1)
 
-let find_cf_part trace cf_trace eois events_in_factual config =
-  let rec aux eois events_in_factual events_in_cf =
+let find_cf_part trace cf_trace eoi events_in_factual config =
+  let rec aux eoi events_in_factual events_in_cf =
     (* Find the inhibitors of eoi in the cf trace, and eventually filter them. *)
     (* If there is a direct cause that has been blocked directly, we blacklist it and we try again. *)
-    let events_in_factual = IntSet.union (IntSet.of_list eois) events_in_factual in
+    let events_in_factual = IntSet.add eoi events_in_factual in
     let pre_core = if config.precompute_cores
       then Some (IntSet.of_list (compress trace (IntSet.elements events_in_factual) config.compression_algorithm))
       else None in
-    let reasons = List.flatten (List.map (fun eoi -> find_inhibitive_arrows trace cf_trace pre_core eoi) eois) in
+    let reasons = find_inhibitive_arrows trace cf_trace pre_core eoi in
 
     let dummy_direct_causes = List.map (function No_reason i -> i | Inhibition _ -> assert false)
       (List.filter (function No_reason _ -> true | Inhibition _ -> false) reasons) in
@@ -204,15 +222,14 @@ let find_cf_part trace cf_trace eois events_in_factual config =
       (* Recursivity powaaaa ! *)
       let events_in_factual = IntSet.union events_in_factual f_involved in
       let events_in_cf = IntSet.union events_in_cf cf_involved in
-      let result = List.map (fun e -> aux [e] events_in_factual events_in_cf) (IntSet.elements f_eois) in
+      let result = List.map (fun e -> aux e events_in_factual events_in_cf) (IntSet.elements f_eois) in
       List.fold_left (fun (acc1,acc2,acc3,acc4) (e1,e2,e3,e4) -> (IntSet.union acc1 e1, IntSet.union acc2 e2, acc3@e3, IntSet.union acc4 e4))
         (events_in_factual,events_in_cf,sort_uniq_inhibition_arrows inhibitions_ids,blacklist) result
     end
-  in aux eois events_in_factual IntSet.empty
+  in aux eoi events_in_factual IntSet.empty
 
 let add_cf_parts trace eoi core config =
   let rec aux core cf_parts events_in_factual blacklist =
-    let eois = if config.analyse_all_core_events then core else [eoi] in
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
     logs "Determining interventions (heuristic)..." ;
     let interventions = config.heuristic trace blacklist core eoi in
@@ -221,18 +238,21 @@ let add_cf_parts trace eoi core config =
     (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
     (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)
     logs (Format.asprintf "%a. Resimulating..." Resimulator_interface.print_short interventions) ;
-    let (nb_samples,nb_rej,nb_failed,wit) = resimulate_and_sample trace config.nb_samples config.max_rejections eoi eois interventions scs in
-    let ratio = if nb_samples > 0 then 1.0 -. (float_of_int nb_failed)/.(float_of_int nb_samples) else 1.0 in
-    logs ((string_of_int nb_rej)^" rejected. Ratio : "^(string_of_float ratio)) ;
+    let (nb_failed,wit_rej,wit_ok) = resimulate_and_sample trace eoi core interventions scs config in
+    let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
+    logs ("Ratio : "^(string_of_float ratio)) ;
     if ratio >= config.threshold || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
     else
     (
-      logs "Computing counterfactual experiment..." ;
-      let (trace,cf_trace) = match wit with Some wit -> wit | None -> assert false in
+      let ((trace,cf_trace),rej) = if wit_ok <> None then
+      match wit_ok with Some wit -> (wit,false) | None -> assert false
+      else match wit_rej with Some wit -> (wit,true) | None -> assert false
+      in
       (*dbg (Format.asprintf "%a" Global_trace.print cf_trace) ;*)
+      logs ((if rej then "Rejected resimulation. " else "Accepted resimulation. ")^"Computing the counterfactual part...") ;
 
       (* Compute the counterfactual part *)
-      let (events_in_factual,events_in_cf,inhibitions_ids,blacklist2) = find_cf_part trace cf_trace eois events_in_factual config in
+      let (events_in_factual,events_in_cf,inhibitions_ids,blacklist2) = find_cf_part trace cf_trace eoi events_in_factual config in
       let blacklist = IntSet.union blacklist blacklist2 in
       let (cf_part,events_in_factual) = if List.length inhibitions_ids = 0 then 
       (
@@ -249,7 +269,8 @@ let add_cf_parts trace eoi core config =
         then IntSet.union (factual_events_of_trace cf_subtrace) events_in_factual else events_in_factual in
         (Some (cf_subtrace,inhibitions_ids), events_in_factual)
       ) in
-      let cf_parts = match cf_part with None -> cf_parts | Some cfp -> cfp::cf_parts in
+      let cf_parts = match cf_part with None -> cf_parts | Some cfp ->
+      (if config.keep_rejected_cf_parts || not rej then cfp::cf_parts else cf_parts) in
       (* Update the factual core *)
       let core = compress trace (IntSet.elements events_in_factual) config.compression_algorithm in
 
