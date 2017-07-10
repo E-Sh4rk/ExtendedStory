@@ -215,16 +215,26 @@ let add_cf_parts trace eoi core config =
     logs "Computing counterfactual experiment..." ;
     let (trace,cf_trace) = match wit with Some wit -> wit | None -> assert false in
 
+    (* Compute the counterfactual part *)
     let (events_in_factual,events_in_cf,inhibitions_ids,blacklist2) = find_cf_part trace cf_trace eoi events_in_factual config in
     let blacklist = IntSet.union blacklist blacklist2 in
-    (* Compute the counterfactual causal core *)
-    logs ((string_of_int (List.length inhibitions_ids))^" inhibition arrows found ! Computing new causal cores...") ;
-    let cf_core = compress cf_trace (IntSet.elements events_in_cf) config.compression_algorithm in
-    let cf_subtrace = subtrace_of cf_trace cf_core in
-    let cf_parts = (cf_subtrace,inhibitions_ids)::cf_parts in
-    (* Update the factual core *)
-    let events_in_factual = if config.add_all_factual_events_involved_to_factual_core
+    let (cf_part,events_in_factual) = if List.length inhibitions_ids = 0 then 
+    (
+      logs ("No inhibition found ! Skipping...") ;
+      (None,events_in_factual)
+    )
+    else
+    (
+      (* Compute the counterfactual causal core *)
+      logs ((string_of_int (List.length inhibitions_ids))^" inhibition arrows found ! Computing new causal cores...") ;
+      let cf_core = compress cf_trace (IntSet.elements events_in_cf) config.compression_algorithm in
+      let cf_subtrace = subtrace_of cf_trace cf_core in
+      let events_in_factual = if config.add_all_factual_events_involved_to_factual_core
       then IntSet.union (factual_events_of_trace cf_subtrace) events_in_factual else events_in_factual in
+      (Some (cf_subtrace,inhibitions_ids), events_in_factual)
+    ) in
+    let cf_parts = match cf_part with None -> cf_parts | Some cfp -> cfp::cf_parts in
+    (* Update the factual core *)
     let core = compress trace (IntSet.elements events_in_factual) config.compression_algorithm in
 
     aux core cf_parts events_in_factual blacklist
