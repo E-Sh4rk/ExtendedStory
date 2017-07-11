@@ -95,14 +95,18 @@ let heuristic_block_all pers trace blacklist core eoi : interventions =
 
 (* ----------------------------------- REJECTION -------------------------------------- *)
 
-let rejection_1 trace cf_trace core eoi =
-  let not_happened = List.filter (fun i -> search_global_id cf_trace (get_global_id trace i) = None) core in
-  let rules_not_happened = List.filter (fun i -> match get_step trace i with Trace.Rule _ -> true | _ -> false) not_happened in
+type rejection_mode = Unsynch_only | Unsynch_and_duplication
+
+let rejection_1 rej_mode trace cf_trace core eoi =
+  let involved = if rej_mode = Unsynch_only
+    then List.filter (fun i -> search_global_id cf_trace (get_global_id trace i) = None) core
+    else core in
+  let rules_involved = List.filter (fun i -> match get_step trace i with Trace.Rule _ -> true | _ -> false) involved in
   let similar f cf = if get_rule_id (get_step trace f) (-1) <> get_rule_id (get_step cf_trace cf) (-1) then false
     else if ASet.is_empty (ASet.inter (agents_involved (get_actions trace f)) (agents_involved (get_actions cf_trace cf)) ) then false
     else true
   in
-  let rejected cf = List.exists (fun f -> similar f cf) rules_not_happened in
+  let rejected cf = get_global_id cf_trace cf < 0 && List.exists (fun f -> similar f cf) rules_involved in
   let rec aux i = match i with
   | i when i < 0 -> false
   | i when rejected i -> true
