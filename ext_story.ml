@@ -157,25 +157,26 @@ let factual_events_of_trace trace =
 let find_cf_part trace cf_trace eoi events_in_factual config =
   let rec aux eoi events_in_factual events_in_cf =
     (* Find the inhibitors of eoi in the cf trace, and eventually filter them. *)
-    (* If there is a direct cause that has been blocked directly, we blacklist it and we try again. *)
+    (* We add to the blacklist the events that have been blocked and that are at the origin of the counterfactual experiment explored. *)
     let events_in_factual = IntSet.add eoi events_in_factual in
     let pre_core = if config.precompute_cores
       then Some (IntSet.of_list (compress trace (IntSet.elements events_in_factual) config.compression_algorithm))
       else None in
     let reasons = find_inhibitive_arrows trace cf_trace pre_core eoi in
 
-    let dummy_direct_causes = List.map (function No_reason i -> i | Inhibition _ -> assert false)
+    let origins_blocked = List.map (function No_reason i -> i | Inhibition _ -> assert false)
       (List.filter (function No_reason _ -> true | Inhibition _ -> false) reasons) in
-    let blacklist = IntSet.of_list dummy_direct_causes in
+    let blacklist = IntSet.of_list origins_blocked in
 
-    if dummy_direct_causes <> [] then
+    let inhibitors_cf = List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
+      (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons) in
+
+    if inhibitors_cf = [] then
     begin        
-      logs "Direct cause blocked ! Stopping inhibitions search..." ;
+      logs "No inhibition arrow left !" ;
       (events_in_factual, events_in_cf, (*inhibitions_ids*)[], blacklist)
     end
     else begin
-      let inhibitors_cf = List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
-      (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons) in
       let inhibitors_cf = choose_arrows inhibitors_cf config.max_cf_inhibition_arrows in
       let inhibitors_cf_ids = List.map (fun (src,c,dest) -> get_global_id cf_trace src, c, get_global_id trace dest) inhibitors_cf in
       (* Find the inhibitors of cf_eois in the factual trace, and eventually filter them *)

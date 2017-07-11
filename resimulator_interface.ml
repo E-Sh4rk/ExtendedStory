@@ -45,7 +45,7 @@ let is_cf_event_blocked cf last_f_event _ rid_opt actions =
     then true else aux cf
     | None -> aux cf
   )
-  | (Blocked_step (agents,before,after))::cf ->
+  | (Blocked_step (agents,after,before))::cf ->
   (
     if is_compatible (agents,after,before) last_f_event actions
     then true else aux cf
