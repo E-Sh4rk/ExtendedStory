@@ -93,28 +93,25 @@ let heuristic_block_all pers trace blacklist core eoi : interventions =
   else let (f,cf) = persistent in
   (f,List.map (function Blocked_rule (rid,inv,_,_) -> Blocked_rule (rid,inv,None,None) | _ -> assert false) cf)
 
-(* ----------------------------------- REJECTION -------------------------------------- *)
+(* ----------------------------------- SCORING -------------------------------------- *)
 
-type rejection_mode = Unsynch_only | Unsynch_and_duplication
-
-let rejection_1 rej_mode trace cf_trace core eoi =
-  let involved = if rej_mode = Unsynch_only
-    then List.filter (fun i -> search_global_id cf_trace (get_global_id trace i) = None) core
-    else core in
-  let rules_involved = List.filter (fun i -> match get_step trace i with Trace.Rule _ -> true | _ -> false) involved in
+let scoring_1 trace cf_trace core eoi =
+  let core_rule_events = List.filter (fun i -> match get_step trace i with Trace.Rule _ -> true | _ -> false) core in
+  let core_rule_events_happened = List.filter (fun i -> search_global_id cf_trace (get_global_id trace i) <> None) core_rule_events in
   let similar f cf = if get_rule_id (get_step trace f) (-1) <> get_rule_id (get_step cf_trace cf) (-1) then false
     else if ASet.is_empty (ASet.inter (agents_involved (get_actions trace f)) (agents_involved (get_actions cf_trace cf)) ) then false
     else true
   in
-  let rejected cf = get_global_id cf_trace cf < 0 && List.exists (fun f -> similar f cf) rules_involved in
-  let rec aux i = match i with
-  | i when i < 0 -> false
-  | i when rejected i -> true
-  | i -> aux (i-1)
+  let score cf = if get_global_id cf_trace cf >= 0 then 0
+    else if List.exists (fun f -> similar f cf) core_rule_events_happened then -1 (* Duplication *)
+    else if List.exists (fun f -> similar f cf) core_rule_events then -2 (* Desynchronization *)
+    else 0 in
+  let rec aux i acc = match i with
+  | i when i < 0 -> acc
+  | i -> aux (i-1) (acc+(score i))
   in
   let cf_index_eq = search_last_before_order cf_trace (get_order trace eoi) in
   let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
-  aux cf_index_eq
+  aux cf_index_eq 0
 
-let rejection_accept_all _ _ _ _ = false
-let rejection_reject_all _ _ _ _ = true
+let scoring_cst _ _ _ _ = 0

@@ -1,5 +1,5 @@
 MODEL=test
-OBS=p
+OBS=Sp
 TIME=3600
 
 ExtendedStory: ExtendedStory.native

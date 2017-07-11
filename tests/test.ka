@@ -16,4 +16,6 @@
 
 %init: 'VA' K(x~u), S(x~u)
 
+%obs: 'Sp' |S(x~p)|
+%mod: [true] do $TRACK 'Sp' [true]
 %mod: |S(x~p)| > 0 do $STOP

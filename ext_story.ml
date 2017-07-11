@@ -10,10 +10,9 @@ type configuration =
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
   heuristic    : Global_trace.t -> Ext_tools.IntSet.t -> int list -> int -> Resimulator_interface.interventions;
   nb_samples   : int;
-  trace_rejection_heuristic : Global_trace.t -> Global_trace.t -> int list -> int -> bool ;
+  trace_scoring_heuristic : Global_trace.t -> Global_trace.t -> int list -> int -> int ;
   threshold    : float;
   max_counterfactual_parts : int;
-  keep_rejected_cf_parts : bool;
   precompute_cores : bool;
   max_cf_inhibition_arrows : int;
   max_fc_inhibition_arrows_per_inhibator : int;
@@ -43,18 +42,19 @@ let cf_trace_succeed eoi trace cf_trace =
   | Some _ -> true
 
 let resimulate_and_sample trace eoi core block_pred stop_pred config =
-  let rec aux n nb_failed wit_rej wit_ok = match n with
-    | 0 -> (nb_failed,wit_rej,wit_ok)
+  let rec aux n nb_failed score wit = match n with
+    | 0 -> (nb_failed,score,wit)
     | n -> let cf_trace = resimulate block_pred stop_pred trace in
     (*dbg (Format.asprintf "%a" Global_trace.print cf_trace) ;*)
-    if cf_trace_succeed eoi trace cf_trace then
-    aux (n-1) nb_failed wit_rej wit_ok
-
-    else if config.trace_rejection_heuristic trace cf_trace core eoi
-    then aux (n-1) (nb_failed+1) (Some (copy trace,cf_trace)) wit_ok
-    
-    else aux (n-1) (nb_failed+1) wit_rej (Some (copy trace,cf_trace))
-  in aux config.nb_samples 0 None None
+    if cf_trace_succeed eoi trace cf_trace
+    then aux (n-1) nb_failed score wit
+    else
+    (
+      let new_score = config.trace_scoring_heuristic trace cf_trace core eoi in
+      if new_score > score then aux (n-1) (nb_failed+1) new_score (Some (copy trace,cf_trace))
+      else aux (n-1) (nb_failed+1) score wit
+    )
+  in aux config.nb_samples 0 min_int None
 
 let rec last_inhibitive_event_before trace index constr =
   let Grid.Constr (var, _) = constr in
@@ -216,18 +216,15 @@ let add_cf_parts trace eoi core config =
     (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
     (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)
     logs (Format.asprintf "%a. Resimulating..." Resimulator_interface.print_short interventions) ;
-    let (nb_failed,wit_rej,wit_ok) = resimulate_and_sample trace eoi core interventions scs config in
+    let (nb_failed,score,wit) = resimulate_and_sample trace eoi core interventions scs config in
     let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
     logs ("Ratio S/F : "^(string_of_float ratio)) ;
     if ratio >= config.threshold || nb_failed = 0 || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
     else
     (
-      let ((trace,cf_trace),rej) = if wit_ok <> None then
-      match wit_ok with Some wit -> (wit,false) | None -> assert false
-      else match wit_rej with Some wit -> (wit,true) | None -> assert false
-      in
+      let (trace,cf_trace) = match wit with Some wit -> wit | None -> assert false in
       (*dbg (Format.asprintf "%a" Global_trace.print cf_trace) ;*)
-      logs ((if rej then "Rejected resimulation. " else "Accepted resimulation. ")^"Computing the counterfactual part...") ;
+      logs ("Resimulation score : "^(string_of_int score)^". Computing the counterfactual part...") ;
 
       (* Compute the counterfactual part *)
       let (events_in_factual,events_in_cf,inhibitions_ids,blacklist2) = find_cf_part trace cf_trace eoi events_in_factual config in
@@ -247,8 +244,7 @@ let add_cf_parts trace eoi core config =
         then IntSet.union (factual_events_of_trace cf_subtrace) events_in_factual else events_in_factual in
         (Some (cf_subtrace,inhibitions_ids), events_in_factual)
       ) in
-      let cf_parts = match cf_part with None -> cf_parts | Some cfp ->
-      (if config.keep_rejected_cf_parts || not rej then cfp::cf_parts else cf_parts) in
+      let cf_parts = match cf_part with None -> cf_parts | Some cfp -> cfp::cf_parts in
       (* Update the factual core *)
       let core = compress trace (IntSet.elements events_in_factual) config.compression_algorithm in
 

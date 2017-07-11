@@ -1,0 +1,2 @@
+  - Improve scoring heuristic :
+  substract points if counterfactual events repeat themselves (maintain a list of previously met events). 

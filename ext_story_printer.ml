@@ -1,8 +1,9 @@
 open Ext_tools
 
-type merging_mode = Hiding_factual_events | Merging_factual_events | No_merging
+type merging_mode = Hiding_counterfactual_parts | Hiding_factual_events | Merging_factual_events | No_merging
 
 (* Different merging modes :
+    - Don't show counterfactual parts
     - Show only counterfactual-only events of counterfactual parts (+annotations)
     - Show everything without merging (many nodes can correspond to the same factual event)
     - Merge common factual events BUT if they have different causes, show all these relations with different colors
@@ -110,28 +111,31 @@ let print_inhibition settings part_nb (id1,c,id2) =
 let print_counterfactual_part settings (tr,inh) part_nb fap =
     let pr x = Format.fprintf settings.fmt x in
 
-    let core = n_first_intergers (Global_trace.length tr) in
-    let fap = List.fold_left (fun acc i -> print_event settings tr part_nb i acc) IntSet.empty core in
-    pr "@;" ;
-    List.iter (print_inhibition settings part_nb) inh ;
-    pr "@;" ;
-
-    let prec = compute_precedence tr in
-    let prec = if settings.mode = Hiding_factual_events
-    then List.filter (fun (s,d) -> (s < 0 || IntSet.mem s fap) && (d < 0 || IntSet.mem d fap)) prec
-    else prec in
-    List.iter (print_precedence settings part_nb) prec ;
-    pr "@;" ;
-    if settings.options.Story_printer.show_strong_deps then
+    if settings.mode <> Hiding_counterfactual_parts then
     (
-        let act = compute_activation tr in
-        let act = if settings.mode = Hiding_factual_events
-        then List.filter (fun (s,_,d) -> (s < 0 || IntSet.mem s fap) && (d < 0 || IntSet.mem d fap)) act
-        else act in
-        List.iter (print_activation settings part_nb) act ;
-        pr "@;"
-    ) ;
-    fap
+        let core = n_first_intergers (Global_trace.length tr) in
+        let fap = List.fold_left (fun acc i -> print_event settings tr part_nb i acc) fap core in
+        pr "@;" ;
+        List.iter (print_inhibition settings part_nb) inh ;
+        pr "@;" ;
+
+        let prec = compute_precedence tr in
+        let prec = if settings.mode = Hiding_factual_events
+        then List.filter (fun (s,d) -> (s < 0 || IntSet.mem s fap) && (d < 0 || IntSet.mem d fap)) prec
+        else prec in
+        List.iter (print_precedence settings part_nb) prec ;
+        pr "@;" ;
+        if settings.options.Story_printer.show_strong_deps then
+        (
+            let act = compute_activation tr in
+            let act = if settings.mode = Hiding_factual_events
+            then List.filter (fun (s,_,d) -> (s < 0 || IntSet.mem s fap) && (d < 0 || IntSet.mem d fap)) act
+            else act in
+            List.iter (print_activation settings part_nb) act ;
+            pr "@;"
+        ) ;
+        fap
+    ) else fap
 
 let print_extended_story (fact,cps) mode options fmt =
     let pr x = Format.fprintf fmt x in
