@@ -66,9 +66,10 @@ let rec last_inhibitive_event_before trace index constr =
   if List.exists (fun c -> c=constr) (get_actions trace i)
   then None (* It is an activation *)
   else (
-    if List.exists (fun c -> c=constr) (get_tests trace i)
-    then Some i
-    else last_inhibitive_event_before trace i constr
+      match last_inhibitive_event_before trace i constr with
+      | None -> Some i (* If this event created the agent of the constraint,
+      we consider it like an inhibitor because there must one. *)
+      | Some i -> Some i
   )
 
 let rec last_between_among history among index1 index2 =
