@@ -217,8 +217,8 @@ let add_cf_parts trace eoi core config =
     logs (Format.asprintf "%a. Resimulating..." Resimulator_interface.print_short interventions) ;
     let (nb_failed,wit_rej,wit_ok) = resimulate_and_sample trace eoi core interventions scs config in
     let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
-    logs ("Ratio : "^(string_of_float ratio)) ;
-    if ratio >= config.threshold || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
+    logs ("Ratio S/F : "^(string_of_float ratio)) ;
+    if ratio >= config.threshold || nb_failed = 0 || List.length cf_parts >= config.max_counterfactual_parts then (core, cf_parts)
     else
     (
       let ((trace,cf_trace),rej) = if wit_ok <> None then

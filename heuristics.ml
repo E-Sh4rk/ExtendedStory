@@ -113,3 +113,4 @@ let rejection_1 trace cf_trace core eoi =
   aux cf_index_eq
 
 let rejection_accept_all _ _ _ _ = false
+let rejection_reject_all _ _ _ _ = true
