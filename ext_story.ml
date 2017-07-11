@@ -137,15 +137,17 @@ let find_inhibitive_arrows trace1 trace2 follow_core eoi1 =
   | None -> aux eoi1
   | Some _ -> []
 
-let sort_uniq_inhibition_arrows arrows =
-  let cmp (s,c,d) (s',c',d') =
-    match Pervasives.compare d d' with
+let cmp_inhibition_arrows_earliest (s,c,d) (s',c',d') =
+  match Pervasives.compare d d' with
   | 0 -> (match Pervasives.compare s s' with 0 -> Pervasives.compare c c' | n -> n)
   | n -> n
-  in List.sort_uniq cmp arrows
 
-let choose_arrows arrows nb =
-  let arrows = sort_uniq_inhibition_arrows arrows in
+let choose_arrows_cf arrows nb =
+  let arrows = List.sort_uniq cmp_inhibition_arrows_earliest arrows in
+  cut_after_index (nb-1) arrows
+
+let choose_arrows_fc arrows nb =
+  let arrows = List.sort_uniq (fun a b -> cmp_inhibition_arrows_earliest b a) arrows in
   cut_after_index (nb-1) arrows
 
 let factual_events_of_trace trace =
@@ -178,7 +180,7 @@ let find_cf_part trace cf_trace eoi events_in_factual config =
       (events_in_factual, events_in_cf, (*inhibitions_ids*)[], blacklist)
     end
     else begin
-      let inhibitors_cf = choose_arrows inhibitors_cf config.max_cf_inhibition_arrows in
+      let inhibitors_cf = choose_arrows_cf inhibitors_cf config.max_cf_inhibition_arrows in
       let inhibitors_cf_ids = List.map (fun (src,c,dest) -> get_global_id cf_trace src, c, get_global_id trace dest) inhibitors_cf in
       (* Find the inhibitors of cf_eois in the factual trace, and eventually filter them *)
       let cf_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_cf in
@@ -189,7 +191,7 @@ let find_cf_part trace cf_trace eoi events_in_factual config =
       let reasons = List.map (fun e -> find_inhibitive_arrows cf_trace trace cf_pre_core e) (IntSet.elements cf_eois) in
       let inhibitors_fc = List.map (fun reasons -> List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
         (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons)) reasons in
-      let inhibitors_fc = List.map (fun inh -> choose_arrows inh config.max_fc_inhibition_arrows_per_inhibator) inhibitors_fc in
+      let inhibitors_fc = List.map (fun inh -> choose_arrows_fc inh config.max_fc_inhibition_arrows_per_inhibator) inhibitors_fc in
       let inhibitors_fc = List.flatten inhibitors_fc in
       let inhibitors_fc_ids = List.map (fun (src,c,dest) -> get_global_id trace src, c, get_global_id cf_trace dest) inhibitors_fc in
       let f_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_fc in
@@ -202,7 +204,7 @@ let find_cf_part trace cf_trace eoi events_in_factual config =
       let events_in_cf = IntSet.union events_in_cf cf_involved in
       let result = List.map (fun e -> aux e events_in_factual events_in_cf) (IntSet.elements f_eois) in
       List.fold_left (fun (acc1,acc2,acc3,acc4) (e1,e2,e3,e4) -> (IntSet.union acc1 e1, IntSet.union acc2 e2, acc3@e3, IntSet.union acc4 e4))
-        (events_in_factual,events_in_cf,sort_uniq_inhibition_arrows inhibitions_ids,blacklist) result
+        (events_in_factual,events_in_cf,List.sort_uniq cmp_inhibition_arrows_earliest inhibitions_ids,blacklist) result
     end
   in aux eoi events_in_factual IntSet.empty
 
