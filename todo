@@ -1,2 +1,4 @@
   - Improve scoring heuristic :
-  substract points if counterfactual events repeat themselves (maintain a list of previously met events). 
+  substract points if counterfactual events repeat themselves (maintain a list of previously met events).
+  - Improve blocking heuristic :
+  sometimes, 0 blocked for model 'test'
