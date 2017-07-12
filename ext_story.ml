@@ -113,17 +113,21 @@ type inhibition_reason =
 
 let find_inhibitive_arrows trace1 trace2 follow_core eoi1 =
   let rec rewind (src,c,dest) =
+    (*dbg (Format.asprintf "Inh? : %d (%d,%d) -> %d (%d,%d)" src (get_global_id trace2 src) (get_order trace2 src)
+    dest (get_global_id trace1 dest) (get_order trace1 dest));*)
     let index1_eq = search_first_after_order trace1 (get_order trace2 src) in
     let index1_eq = match index1_eq with None -> length trace1 | Some i -> i in
     let act = activation_event_between trace1 follow_core (index1_eq-1) dest c in
     match act with
     | None ->
     (*dbg (Format.asprintf "Inh : %d (%d,%d) -> %d (%d,%d)" src (get_global_id trace2 src) (get_order trace2 src)
-    dest (get_global_id trace1 dest) (get_order trace1 dest)) ;*)
+    dest (get_global_id trace1 dest) (get_order trace1 dest));*)
     assert ((get_global_id trace2 src < 0 && get_global_id trace1 dest >= 0)
          || (get_global_id trace2 src >= 0 && get_global_id trace1 dest < 0));
     [Inhibition (src,c,dest)]
-    | Some i -> aux i
+    | Some i ->
+    (*dbg (Format.asprintf "Act : %d (%d,%d)" i (get_global_id trace1 i) (get_order trace1 i));*)
+    aux i
   and aux dest =
     let index2_eq = search_last_before_order trace2 (get_order trace1 dest) in
     let index2_eq = match index2_eq with None -> -1 | Some i -> i in
@@ -147,9 +151,7 @@ let choose_arrows_cf arrows nb =
   let arrows = List.sort_uniq cmp_inhibition_arrows_earliest arrows in
   cut_after_index (nb-1) arrows
 
-let choose_arrows_fc arrows nb =
-  let arrows = List.sort_uniq (fun a b -> cmp_inhibition_arrows_earliest b a) arrows in
-  cut_after_index (nb-1) arrows
+let choose_arrows_fc arrows nb = choose_arrows_cf arrows nb
 
 let factual_events_of_trace trace =
   let rec aux acc i = match i with
@@ -226,7 +228,7 @@ let add_cf_parts trace eoi core config =
     else
     (
       let (trace,cf_trace) = match wit with Some wit -> wit | None -> assert false in
-      (*dbg (Format.asprintf "%a" Global_trace.print cf_trace) ;*)
+      (*dbg (Format.asprintf "%a" Global_trace.print_full cf_trace) ;*)
       logs ("Resimulation score : "^(string_of_int score)^". Computing the counterfactual part...") ;
 
       (* Compute the counterfactual part *)

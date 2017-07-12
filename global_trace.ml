@@ -115,7 +115,6 @@ let last_cf_id = ref 0
 let add_counterfactual_step rtr (csteps,(cgi,ri,o)) cs =
   match cs with
   | Resimulation.Counterfactual_happened s ->
-  (*dbg ((string_of_int (!last_cf_id - 1))^": "^(get_step_name (get_model rtr) s "undefined")) ;*)
   last_cf_id := !last_cf_id - 1 ;
   (s::csteps,((!last_cf_id,o)::cgi,ri,o+1))
   | Resimulation.Factual_did_not_happen (_,s) ->
@@ -174,5 +173,6 @@ let print fmt tr =
   List.iter (fun i -> Format.fprintf fmt "%d ; " (get_global_id tr i)) core
 let print_full fmt tr =
   let core = n_first_intergers (length tr) in
-  List.iter (fun i -> Format.fprintf fmt "%d (%d,%d)\n" i (get_global_id tr i) (get_order tr i)) core ;
+  List.iter (fun i -> Format.fprintf fmt "%d (%d,%d) : %s\n" i (get_global_id tr i) (get_order tr i)
+  (get_step_name (get_model tr) (get_step tr i) "")) core ;
   Format.fprintf fmt "------------------"
