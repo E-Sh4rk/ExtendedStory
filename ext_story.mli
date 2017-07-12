@@ -2,6 +2,7 @@
 type cf_part = Global_trace.t * ((int * Grid.constr * int) list) (* (subtrace, inhibition arrows) *)
 type extended_story = Global_trace.t * (cf_part list) (* (subtrace, counterfactual parts) *)
 
+type inhibitions_finding_mode = Consider_entire_trace | Prefer_core | Consider_only_core
 type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
@@ -10,7 +11,8 @@ type configuration =
   trace_scoring_heuristic : Global_trace.t -> Global_trace.t -> int list -> int -> int ;
   threshold    : float;
   max_counterfactual_parts : int;
-  precompute_cores : bool; (* Improve inhibition searching results. *)
+  cf_inhibitions_finding_mode : inhibitions_finding_mode;
+  fc_inhibitions_finding_mode : inhibitions_finding_mode;
   max_cf_inhibition_arrows : int;
   max_fc_inhibition_arrows_per_inhibator : int;
   add_all_factual_events_involved_to_factual_core : bool;

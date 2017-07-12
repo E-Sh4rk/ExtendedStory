@@ -5,6 +5,7 @@ open Global_trace
 type cf_part = Global_trace.t * ((int * Grid.constr * int) list) (* (subtrace, inhibition arrows) *)
 type extended_story = Global_trace.t * (cf_part list) (* (subtrace, counterfactual parts) *)
 
+type inhibitions_finding_mode = Consider_entire_trace | Prefer_core | Consider_only_core
 type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
@@ -13,7 +14,8 @@ type configuration =
   trace_scoring_heuristic : Global_trace.t -> Global_trace.t -> int list -> int -> int ;
   threshold    : float;
   max_counterfactual_parts : int;
-  precompute_cores : bool;
+  cf_inhibitions_finding_mode : inhibitions_finding_mode;
+  fc_inhibitions_finding_mode : inhibitions_finding_mode;
   max_cf_inhibition_arrows : int;
   max_fc_inhibition_arrows_per_inhibator : int;
   add_all_factual_events_involved_to_factual_core : bool;
@@ -93,31 +95,29 @@ let rec last_activation_event_between trace among index1 index2 constr =
   (
     if List.exists (fun c -> c=constr) (get_tests trace i)
     then last_activation_event_between trace among index1 i constr
-    else Some i 
+    else Some i
   ) 
   else None (* It is an inhibition *)
 
-let activation_event_between trace follow_core index1 index2 constr =
-  let i = last_activation_event_between trace None index1 index2 constr in
-  if follow_core <> None && i <> None
-  then
-  (
-    let i' = last_activation_event_between trace follow_core index1 index2 constr in
-    if i' = None then i else i'
-  )
-  else i
+let activation_event_between trace mode core index1 index2 constr =
+  let core_act =
+    if mode = Consider_entire_trace || core = None then None
+    else last_activation_event_between trace core index1 index2 constr in
+  if core_act = None && mode <> Consider_only_core
+  then last_activation_event_between trace None index1 index2 constr
+  else core_act
 
 type inhibition_reason =
   | Inhibition of int * Grid.constr * int
   | No_reason of int
 
-let find_inhibitive_arrows trace1 trace2 follow_core eoi1 =
+let find_inhibitive_arrows trace1 trace2 mode core eoi1 =
   let rec rewind (src,c,dest) =
     (*dbg (Format.asprintf "Inh? : %d (%d,%d) -> %d (%d,%d)" src (get_global_id trace2 src) (get_order trace2 src)
     dest (get_global_id trace1 dest) (get_order trace1 dest));*)
     let index1_eq = search_first_after_order trace1 (get_order trace2 src) in
     let index1_eq = match index1_eq with None -> length trace1 | Some i -> i in
-    let act = activation_event_between trace1 follow_core (index1_eq-1) dest c in
+    let act = activation_event_between trace1 mode core (index1_eq-1) dest c in
     match act with
     | None ->
     (*dbg (Format.asprintf "Inh : %d (%d,%d) -> %d (%d,%d)" src (get_global_id trace2 src) (get_order trace2 src)
@@ -165,10 +165,10 @@ let find_cf_part trace cf_trace eoi events_in_factual config =
     (* Find the inhibitors of eoi in the cf trace, and eventually filter them. *)
     (* We add to the blacklist the events that have been blocked and that are at the origin of the counterfactual experiment explored. *)
     let events_in_factual = IntSet.add eoi events_in_factual in
-    let pre_core = if config.precompute_cores
+    let pre_core = if config.cf_inhibitions_finding_mode <> Consider_entire_trace
       then Some (IntSet.of_list (compress trace (IntSet.elements events_in_factual) config.compression_algorithm))
       else None in
-    let reasons = find_inhibitive_arrows trace cf_trace pre_core eoi in
+    let reasons = find_inhibitive_arrows trace cf_trace config.cf_inhibitions_finding_mode pre_core eoi in
 
     let origins_blocked = List.map (function No_reason i -> i | Inhibition _ -> assert false)
       (List.filter (function No_reason _ -> true | Inhibition _ -> false) reasons) in
@@ -188,10 +188,11 @@ let find_cf_part trace cf_trace eoi events_in_factual config =
       (* Find the inhibitors of cf_eois in the factual trace, and eventually filter them *)
       let cf_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty inhibitors_cf in
       let events_in_cf = IntSet.union events_in_cf cf_eois in
-      let cf_pre_core = if config.precompute_cores
+      let cf_pre_core = if config.fc_inhibitions_finding_mode <> Consider_entire_trace
       then Some (IntSet.of_list (compress cf_trace (IntSet.elements events_in_cf) config.compression_algorithm))
       else None in
-      let reasons = List.map (fun e -> find_inhibitive_arrows cf_trace trace cf_pre_core e) (IntSet.elements cf_eois) in
+      let reasons = List.map (fun e -> find_inhibitive_arrows cf_trace trace config.fc_inhibitions_finding_mode cf_pre_core e)
+        (IntSet.elements cf_eois) in
       let inhibitors_fc = List.map (fun reasons -> List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
         (List.filter (function No_reason _ -> false | Inhibition _ -> true) reasons)) reasons in
       let inhibitors_fc = List.map (fun inh -> choose_arrows_fc inh config.max_fc_inhibition_arrows_per_inhibator) inhibitors_fc in

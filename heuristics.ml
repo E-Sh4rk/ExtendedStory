@@ -104,7 +104,7 @@ let scoring_1 trace cf_trace core eoi =
   in
   let score cf = if get_global_id cf_trace cf >= 0 then 0
     else if List.exists (fun f -> similar f cf) core_rule_events_happened then -1 (* Duplication *)
-    else if List.exists (fun f -> similar f cf) core_rule_events then -2 (* Desynchronization *)
+    else if List.exists (fun f -> similar f cf) core_rule_events then -3 (* Desynchronization *)
     else 0 in
   let rec aux i acc = match i with
   | i when i < 0 -> acc

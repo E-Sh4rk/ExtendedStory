@@ -51,11 +51,12 @@ let main () = Printexc.record_backtrace true ;
     {
       compression_algorithm = kaflow_compression;
       heuristic    = Heuristics.heuristic_1 Heuristics.Persistence;
-      nb_samples   = 10;
-      trace_scoring_heuristic = Heuristics.scoring_cst;
+      nb_samples   = 25;
+      trace_scoring_heuristic = Heuristics.scoring_1;
       threshold    = 1.0;
-      max_counterfactual_parts = 2;
-      precompute_cores = true ;
+      max_counterfactual_parts = 3;
+      cf_inhibitions_finding_mode = Prefer_core;
+      fc_inhibitions_finding_mode = Consider_only_core;
       max_cf_inhibition_arrows = 3;
       max_fc_inhibition_arrows_per_inhibator = 1;
       add_all_factual_events_involved_to_factual_core = false;
