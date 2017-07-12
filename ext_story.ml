@@ -101,7 +101,7 @@ let rec last_activation_event_between trace among index1 index2 constr =
 
 let activation_event_between trace mode core index1 index2 constr =
   let core_act =
-    if mode = Consider_entire_trace || core = None then None
+    if mode = Consider_entire_trace then None
     else last_activation_event_between trace core index1 index2 constr in
   if core_act = None && mode <> Consider_only_core
   then last_activation_event_between trace None index1 index2 constr
@@ -111,6 +111,11 @@ type inhibition_reason =
   | Inhibition of int * Grid.constr * int
   | No_reason of int
 
+let is_valid_inhibitor trace1 trace2 i1 =
+  if i1 < 0 || i1 >= length trace1 then false
+  else if search_global_id trace2 (get_global_id trace1 i1) = None then true
+  else false
+
 let find_inhibitive_arrows trace1 trace2 mode core eoi1 =
   let rec rewind (src,c,dest) =
     (*dbg (Format.asprintf "Inh? : %d (%d,%d) -> %d (%d,%d)" src (get_global_id trace2 src) (get_order trace2 src)
@@ -118,6 +123,9 @@ let find_inhibitive_arrows trace1 trace2 mode core eoi1 =
     let index1_eq = search_first_after_order trace1 (get_order trace2 src) in
     let index1_eq = match index1_eq with None -> length trace1 | Some i -> i in
     let act = activation_event_between trace1 mode core (index1_eq-1) dest c in
+    (* For the Consider_only_core option, we must be sure that the src is a valid inhibitor. *)
+    let act = if act = None && not (is_valid_inhibitor trace2 trace1 src)
+    then activation_event_between trace1 mode None (index1_eq-1) dest c else act in
     match act with
     | None ->
     (*dbg (Format.asprintf "Inh : %d (%d,%d) -> %d (%d,%d)" src (get_global_id trace2 src) (get_order trace2 src)
@@ -138,9 +146,7 @@ let find_inhibitive_arrows trace1 trace2 mode core eoi1 =
     | [] -> [No_reason (dest)]
     | inh -> List.flatten (List.map rewind inh)
   in
-  match search_global_id trace2 (get_global_id trace1 eoi1) with
-  | None -> aux eoi1
-  | Some _ -> []
+  if is_valid_inhibitor trace1 trace2 eoi1 then aux eoi1 else []
 
 let cmp_inhibition_arrows_earliest (s,c,d) (s',c',d') =
   match Pervasives.compare d d' with
