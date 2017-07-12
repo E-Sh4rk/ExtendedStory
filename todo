@@ -1,4 +1,5 @@
-  - Improve scoring heuristic :
-  substract points if counterfactual events repeat themselves (maintain a list of previously met events).
+  - precompute_cores -> inhibition_finding_mode with 3 settings : Consider_entire_trace | Prefer_considering_only_core | Consider_only_core.
   - Improve blocking heuristic :
   sometimes, 0 blocked for model 'test'
+  - Improve scoring heuristic :
+  substract points if counterfactual events repeat themselves (maintain a list of previously met events).

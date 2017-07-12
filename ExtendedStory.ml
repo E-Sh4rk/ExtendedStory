@@ -54,10 +54,10 @@ let main () = Printexc.record_backtrace true ;
       nb_samples   = 10;
       trace_scoring_heuristic = Heuristics.scoring_1;
       threshold    = 1.0;
-      max_counterfactual_parts = 2 ;
+      max_counterfactual_parts = 2;
       precompute_cores = true ;
-      max_cf_inhibition_arrows = 2;
-      max_fc_inhibition_arrows_per_inhibator = 2;
+      max_cf_inhibition_arrows = 3;
+      max_fc_inhibition_arrows_per_inhibator = 1;
       add_all_factual_events_involved_to_factual_core = false;
     } in
     let eoi = ref (-1) in
