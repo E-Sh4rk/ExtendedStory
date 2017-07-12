@@ -153,12 +153,14 @@ let choose_arrows_cf arrows nb =
 
 let choose_arrows_fc arrows nb = choose_arrows_cf arrows nb
 
-let factual_events_of_trace trace =
+let factual_events_indexes_of_cf_trace cf_trace factual_trace =
   let rec aux acc i = match i with
   | i when i < 0 -> acc
-  | i when get_global_id trace i >= 0 -> aux (IntSet.add i acc) (i-1)
+  | i when get_global_id cf_trace i >= 0 ->
+  let index_eq = match search_global_id factual_trace (get_global_id cf_trace i) with None -> assert false | Some j -> j in
+  aux (IntSet.add index_eq acc) (i-1)
   | i -> aux acc (i-1) in
-  aux (IntSet.empty) ((length trace)-1)
+  aux (IntSet.empty) ((length cf_trace)-1)
 
 let find_cf_part trace cf_trace eoi events_in_factual config =
   let rec aux eoi events_in_factual events_in_cf =
@@ -247,7 +249,7 @@ let add_cf_parts trace eoi core config =
         let cf_core = compress cf_trace (IntSet.elements events_in_cf) config.compression_algorithm in
         let cf_subtrace = subtrace_of cf_trace cf_core in
         let events_in_factual = if config.add_all_factual_events_involved_to_factual_core
-        then IntSet.union (factual_events_of_trace cf_subtrace) events_in_factual else events_in_factual in
+        then IntSet.union (factual_events_indexes_of_cf_trace cf_subtrace trace) events_in_factual else events_in_factual in
         (Some (cf_subtrace,inhibitions_ids), events_in_factual)
       ) in
       let cf_parts = match cf_part with None -> cf_parts | Some cfp -> cfp::cf_parts in
