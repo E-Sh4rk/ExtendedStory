@@ -68,8 +68,12 @@ let get_global_id (_,gi) index =
   id
 
 let get_order (_,gi) index =
-  let (_,order) = gi.(index) in
-  order
+  if index < 0 then (-1)
+  else if index >= Array.length gi then max_int
+  else (
+    let (_,order) = gi.(index) in
+    order
+  )
 
 let get_step ((te,_),_) index = Trace_explorer.step index te
 

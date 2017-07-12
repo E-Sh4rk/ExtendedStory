@@ -61,14 +61,15 @@ let rec last_inhibitive_event_before trace index constr =
   let history = get_history trace var in
   let last = History.last_before index history in
   match last with
-  | None -> None
+  | None -> Some (-1) (* If there is no event that modified this constraint before,
+  we consider that the index -1 is the inhibitor. *)
   | Some i ->
   if List.exists (fun c -> c=constr) (get_actions trace i)
   then None (* It is an activation *)
   else (
       match last_inhibitive_event_before trace i constr with
       | None -> Some i (* If this event created the agent of the constraint,
-      we consider it like an inhibitor because there must one. *)
+      we consider it like the inhibitor. *)
       | Some i -> Some i
   )
 
