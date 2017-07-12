@@ -5,7 +5,7 @@ open Global_trace
 type cf_part = Global_trace.t * ((int * Grid.constr * int) list) (* (subtrace, inhibition arrows) *)
 type extended_story = Global_trace.t * (cf_part list) (* (subtrace, counterfactual parts) *)
 
-type inhibitions_finding_mode = Consider_entire_trace | Prefer_core | Consider_only_core
+type inhibitions_finding_mode = Consider_entire_trace | Prefer_precomputed_core | Consider_only_precomputed_core
 type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
@@ -103,7 +103,7 @@ let activation_event_between trace mode core index1 index2 constr =
   let core_act =
     if mode = Consider_entire_trace then None
     else last_activation_event_between trace core index1 index2 constr in
-  if core_act = None && mode <> Consider_only_core
+  if core_act = None && mode <> Consider_only_precomputed_core
   then last_activation_event_between trace None index1 index2 constr
   else core_act
 
