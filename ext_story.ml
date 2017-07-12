@@ -267,6 +267,7 @@ let compute_extended_story trace eoi config : extended_story =
   (* Computing factual causal core *)
   logs "Computing initial factual core..." ;
   let core = compress trace [eoi] config.compression_algorithm in
+  (*dbg (Format.asprintf "%a" Global_trace.print_full trace) ;*)
   (*dbg (Format.asprintf "Core : %a" (print_core trace) core) ;*)
   (* Adding counterfactual parts *)
   let (core, cf_parts) = add_cf_parts trace eoi core config in
