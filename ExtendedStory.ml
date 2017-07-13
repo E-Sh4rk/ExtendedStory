@@ -50,16 +50,18 @@ let main () = Printexc.record_backtrace true ;
     let config =
     {
       compression_algorithm = kaflow_compression;
+      always_give_initial_core_to_heuristic = true;
       heuristic    = Heuristics.heuristic_1 Heuristics.Persistence;
       nb_samples   = 25;
       trace_scoring_heuristic = Heuristics.scoring_1;
       threshold    = 1.0;
-      max_counterfactual_parts = 3;
+      max_counterfactual_exps = 3;
       cf_inhibitions_finding_mode = Prefer_precomputed_core;
       fc_inhibitions_finding_mode = Prefer_precomputed_core;
-      max_cf_inhibition_arrows = 3;
-      max_fc_inhibition_arrows_per_inhibator = 1;
-      add_all_factual_events_involved_to_factual_core = false;
+      max_inhibitors_added_per_factual_events = 2;
+      max_inhibitors_added_per_cf_events = 1;
+      add_common_events_to_both_cores = true;
+      compute_inhibition_arrows_for_every_events = false;
     } in
     let eoi = ref (-1) in
     try
