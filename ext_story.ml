@@ -176,7 +176,6 @@ and add events and inhibitions arrows to explain all these events. *)
 let find_explanations trace cf_trace f_events cf_events other_events_in_f_core other_events_in_cf_core config =
   let rec aux f_events cf_events other_events_in_f_core other_events_in_cf_core =
     (* We add to the blacklist the events that have been blocked and that are at the origin of the explanations explored. *)
-
     (* Init case *)
     if IntSet.is_empty f_events && IntSet.is_empty cf_events then (f_events, cf_events, [], IntSet.empty)
     else
@@ -198,7 +197,7 @@ let find_explanations trace cf_trace f_events cf_events other_events_in_f_core o
 
       (* For counterfactuals events *)
       let pre_core_cf = if config.fc_inhibitions_finding_mode <> Consider_entire_trace
-        then Some (IntSet.of_list (compress trace (IntSet.elements (IntSet.union cf_events other_events_in_cf_core)) config.compression_algorithm))
+        then Some (IntSet.of_list (compress cf_trace (IntSet.elements (IntSet.union cf_events other_events_in_cf_core)) config.compression_algorithm))
         else None in
       let reasons_cf = List.map (fun e -> find_inhibitive_arrows cf_trace trace config.fc_inhibitions_finding_mode pre_core_cf e) (IntSet.elements cf_events) in
 
@@ -299,7 +298,7 @@ let add_cf_experiments trace eoi initial_core config =
       let blacklist = IntSet.union blacklist blacklist_2 in
       let cumulated_events = IntSet.union cumulated_events f_events in
       let cf_exps = match cf_exp with None -> cf_exps | Some cf_exp -> cf_exp::cf_exps in
-      
+
       (*dbg (Format.asprintf "%a\n" (fun fmt set -> List.iter (fun i -> Format.fprintf fmt "%d ; " i) (IntSet.elements set)) blacklist) ;*)
       aux cf_exps cumulated_events blacklist
     )

@@ -1,6 +1,0 @@
-  - add_all_factual_events_involved_to_factual_core -> add_common_events_to_both_cores (needed for validity of the counterfactual experiment).
-  Like before but in the two directions (fixe point search).
-  - new counterfactual experiment type that has both a factual and counterfactual core.
-  - initial factual core of experiments are reinit to the initial core, and a cumulated factual core is also calculated.
-  - ext story type is a list of counterfactual experiments and the cumulated factual core.
-  - option to give to the heuristic the cumulated fact core or the initial fact core.
