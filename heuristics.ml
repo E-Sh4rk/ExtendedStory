@@ -114,4 +114,11 @@ let scoring_1 trace cf_trace core eoi =
   let cf_index_eq = match cf_index_eq with None -> -1 | Some i -> i in
   aux cf_index_eq 0
 
+let scoring_shorter _ cf_trace _ _ =
+  let rec count_cf_events i sum = match i with
+  | i when i < 0 -> sum
+  | i when get_global_id cf_trace i < 0 -> count_cf_events (i-1) (sum+1)
+  | i -> count_cf_events (i-1) sum
+  in - (count_cf_events ((length cf_trace)-1) 0)
+
 let scoring_cst _ _ _ _ = 0
