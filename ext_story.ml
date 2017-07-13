@@ -238,6 +238,32 @@ let compute_cores trace cf_trace f_events cf_events config =
     else aux new_f_events new_cf_events
   in aux f_events cf_events
 
+let compute_cf_experiment trace cf_trace eoi config =
+  let rec aux f_events cf_events inhibition_arrows blacklist =
+    let (f_events, cf_events, f_core, cf_core) = compute_cores trace cf_trace f_events cf_events config in
+    (* Possible optimisation : don't recompute every inhibitions arrows but just for new events, and add inhibition arrows to previous ones. *)
+    let (new_f_events, new_cf_events, new_inhibition_arrows, new_blacklist) =
+      if config.compute_inhibition_arrows_for_every_events
+      then find_explanations trace cf_trace f_events cf_events IntSet.empty IntSet.empty config
+      else (f_events, cf_events, inhibition_arrows, blacklist) in
+    let new_blacklist = IntSet.union blacklist new_blacklist in
+    let new_inhibition_arrows = new_inhibition_arrows in
+    if IntSet.equal f_events new_f_events && IntSet.equal cf_events new_cf_events
+    then
+    (
+      (* We pack it in a counterfactual experiment. *)
+      let cf_subtrace = subtrace_of cf_trace cf_core in
+      let f_subtrace = subtrace_of trace f_core in
+      (Some (f_subtrace,cf_subtrace,new_inhibition_arrows), new_f_events, new_blacklist)
+    )
+    else aux new_f_events new_cf_events new_inhibition_arrows new_blacklist
+  in
+  let (f_events,cf_events,inhibition_arrows,blacklist) =
+        find_explanations trace cf_trace (IntSet.singleton eoi) IntSet.empty IntSet.empty IntSet.empty config in
+  if List.length inhibition_arrows = 0
+  then ( logs ("No inhibition found ! Skipping...") ; (None,IntSet.empty,blacklist) )
+  else aux f_events cf_events inhibition_arrows blacklist
+
 let add_cf_experiments trace eoi initial_core config =
   let rec aux cf_exps cumulated_events blacklist =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
@@ -268,25 +294,12 @@ let add_cf_experiments trace eoi initial_core config =
       (*dbg (Format.asprintf "%a" Global_trace.print_full cf_trace) ;*)
       logs ("Resimulation score : "^(string_of_int score)^". Computing the counterfactual part...") ;
 
-      (* Compute the counterfactual part *)
-      (* TODO : add all inhibitions option *)
-      let (f_events,cf_events,inhibitions_arrows,blacklist_2) =
-        find_explanations trace cf_trace (IntSet.singleton eoi) IntSet.empty IntSet.empty IntSet.empty config in
+      (* Compute the counterfactual experiment *)
+      let (cf_exp,f_events,blacklist_2) = compute_cf_experiment trace cf_trace eoi config in
       let blacklist = IntSet.union blacklist blacklist_2 in
-
-      let (cf_exp,f_events) = if List.length inhibitions_arrows = 0 then 
-      ( logs ("No inhibition found ! Skipping...") ; (None,IntSet.empty) )
-      else
-      (
-        (* Compute the counterfactual causal core and corresponding subtraces *)
-        logs ((string_of_int (List.length inhibitions_arrows))^" inhibition arrows found ! Computing causal cores...") ;
-        let (f_events, cf_events, f_core, cf_core) = compute_cores trace cf_trace f_events cf_events config in
-        let cf_subtrace = subtrace_of cf_trace cf_core in
-        let f_subtrace = subtrace_of trace f_core in
-        (Some (f_subtrace,cf_subtrace,inhibitions_arrows), f_events)
-      ) in
-      let cf_exps = match cf_exp with None -> cf_exps | Some cf_exp -> cf_exp::cf_exps in
       let cumulated_events = IntSet.union cumulated_events f_events in
+      let cf_exps = match cf_exp with None -> cf_exps | Some cf_exp -> cf_exp::cf_exps in
+      
       (*dbg (Format.asprintf "%a\n" (fun fmt set -> List.iter (fun i -> Format.fprintf fmt "%d ; " i) (IntSet.elements set)) blacklist) ;*)
       aux cf_exps cumulated_events blacklist
     )
