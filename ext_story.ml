@@ -246,30 +246,30 @@ let add_cf_experiments trace eoi initial_core config =
       let (trace,cf_trace) = match wit with Some wit -> wit | None -> assert false in
       (*dbg (Format.asprintf "%a" Global_trace.print_full cf_trace) ;*)
       logs ("Resimulation score : "^(string_of_int score)^". Computing the counterfactual part...") ;
-(*-------------------------------------------------*)
+
       (* Compute the counterfactual part *)
-      let (events_in_factual,events_in_cf,inhibitions_ids,blacklist2) = compute_cf_experiment trace cf_trace eoi IntSet.empty config in
-      let blacklist = IntSet.union blacklist blacklist2 in
-      let (cf_part,events_in_factual) = if List.length inhibitions_ids = 0 then 
-      (
-        logs ("No inhibition found ! Skipping...") ;
-        (None,events_in_factual)
-      )
+      (* TODO : add all inhibitions option *)
+      let (f_events,cf_events,inhibitions_arrows,blacklist_2) =
+        find_explanations trace cf_trace (IntSet.singleton eoi) IntSet.empty IntSet.empty IntSet.empty config in
+      let blacklist = IntSet.union blacklist blacklist_2 in
+
+      let (cf_exp,f_events) = if List.length inhibitions_arrows = 0 then 
+      ( logs ("No inhibition found ! Skipping...") ; (None,IntSet.empty) )
       else
       (
         (* Compute the counterfactual causal core *)
-        logs ((string_of_int (List.length inhibitions_ids))^" inhibition arrows found ! Computing new causal cores...") ;
-        let cf_core = compress cf_trace (IntSet.elements events_in_cf) config.compression_algorithm in
+        logs ((string_of_int (List.length inhibitions_arrows))^" inhibition arrows found ! Computing causal cores...") ;
+        let cf_core = compress cf_trace (IntSet.elements cf_events) config.compression_algorithm in
         let cf_subtrace = subtrace_of cf_trace cf_core in
+        let f_core = compress trace (IntSet.elements f_events) config.compression_algorithm in
+        let f_subtrace = subtrace_of trace f_core in
         (* TODO : add common events option *)
-        (Some (cf_subtrace,inhibitions_ids), events_in_factual)
+        (Some (f_subtrace,cf_subtrace,inhibitions_arrows), f_events)
       ) in
-      let cf_parts = match cf_part with None -> cf_parts | Some cfp -> cfp::cf_parts in
-      (* Update the factual core *)
-      let core = compress trace (IntSet.elements events_in_factual) config.compression_algorithm in
-
+      let cf_exps = match cf_exp with None -> cf_exps | Some cf_exp -> cf_exp::cf_exps in
+      let cumulated_events = IntSet.union cumulated_events f_events in
       (*dbg (Format.asprintf "%a\n" (fun fmt set -> List.iter (fun i -> Format.fprintf fmt "%d ; " i) (IntSet.elements set)) blacklist) ;*)
-      aux cf_parts events_in_factual blacklist
+      aux cf_exps cumulated_events blacklist
     )
   in aux [] (IntSet.singleton eoi) (IntSet.empty)
 
