@@ -124,6 +124,10 @@ let find_inhibitive_arrows trace1 trace2 mode core eoi1 =
     dest (get_global_id trace1 dest) (get_order trace1 dest));*)
     let index1_eq = search_first_after_order trace1 (get_order trace2 src) in
     let index1_eq = match index1_eq with None -> length trace1 | Some i -> i in
+    (* If destination is in the core, we can use the core to choose a more relevant reactivator. *)
+    let core = match core with
+    | None -> None
+    | Some core -> if IntSet.mem dest core then Some core else None in
     let act = activation_event_between trace1 mode core (index1_eq-1) dest c in
     (* For the Consider_only_core option, we must be sure that the src is a valid inhibitor. *)
     let act = if act = None && not (is_valid_inhibitor trace2 trace1 src)
@@ -151,7 +155,7 @@ let find_inhibitive_arrows trace1 trace2 mode core eoi1 =
   if is_valid_inhibitor trace1 trace2 eoi1 then aux eoi1 else []
 
 let filter_cf_arrows arrows nb =
-  let src = List.map (fun (s,c,d) -> s) arrows in
+  let src = List.map (fun (s,_,_) -> s) arrows in
   let src = List.sort_uniq Pervasives.compare src in
   let src = IntSet.of_list (cut_after_index (nb-1) src) in
   List.filter (fun (s,_,_) -> IntSet.mem s src) arrows
@@ -169,8 +173,8 @@ let factual_events_indexes_of_cf_trace cf_trace factual_trace =
 
 (* Take a list of factual events and a list of cf events,
 and add events and inhibitions arrows to explain all these events. *)
-let find_explanations trace cf_trace f_events cf_events config =
-  let rec aux f_events cf_events =
+let find_explanations trace cf_trace f_events cf_events other_events_in_f_core other_events_in_cf_core config =
+  let rec aux f_events cf_events other_events_in_f_core other_events_in_cf_core =
     (* We add to the blacklist the events that have been blocked and that are at the origin of the explanations explored. *)
 
     (* Init case *)
@@ -179,7 +183,7 @@ let find_explanations trace cf_trace f_events cf_events config =
     (
       (* For factual events *)
       let pre_core_f = if config.cf_inhibitions_finding_mode <> Consider_entire_trace
-        then Some (IntSet.of_list (compress trace (IntSet.elements f_events) config.compression_algorithm))
+        then Some (IntSet.of_list (compress trace (IntSet.elements (IntSet.union f_events other_events_in_f_core)) config.compression_algorithm))
         else None in
       let reasons_f = List.map (fun e -> find_inhibitive_arrows trace cf_trace config.cf_inhibitions_finding_mode pre_core_f e) (IntSet.elements f_events) in
 
@@ -194,7 +198,7 @@ let find_explanations trace cf_trace f_events cf_events config =
 
       (* For counterfactuals events *)
       let pre_core_cf = if config.fc_inhibitions_finding_mode <> Consider_entire_trace
-        then Some (IntSet.of_list (compress trace (IntSet.elements cf_events) config.compression_algorithm))
+        then Some (IntSet.of_list (compress trace (IntSet.elements (IntSet.union cf_events other_events_in_cf_core)) config.compression_algorithm))
         else None in
       let reasons_cf = List.map (fun e -> find_inhibitive_arrows cf_trace trace config.fc_inhibitions_finding_mode pre_core_cf e) (IntSet.elements cf_events) in
 
@@ -210,10 +214,11 @@ let find_explanations trace cf_trace f_events cf_events config =
       let f_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty arrows_fc in
 
       (* Recursivity powaaa! *)
-      let (f_events_2,cf_events_2,inhibitions_ids_2,blacklist_2) = aux f_eois cf_eois in
+      let (f_events_2,cf_events_2,inhibitions_ids_2,blacklist_2) =
+        aux f_eois cf_eois (IntSet.union f_events other_events_in_f_core) (IntSet.union cf_events other_events_in_cf_core) in
       (IntSet.union f_events f_events_2, IntSet.union cf_events cf_events_2, arrows_fc_ids@arrows_cf_ids@inhibitions_ids_2, IntSet.union blacklist blacklist_2)
     )
-  in aux f_events cf_events
+  in aux f_events cf_events other_events_in_f_core other_events_in_cf_core
 
 let add_cf_experiments trace eoi initial_core config =
   let rec aux cf_exps cumulated_events blacklist =
