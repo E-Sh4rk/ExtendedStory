@@ -224,16 +224,19 @@ let add_cf_experiments trace eoi initial_core config =
   let rec aux cf_exps cumulated_events blacklist =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
     logs "Determining interventions (heuristic)..." ;
-    (* TODO : always give inital core to heuristic option *)
-    let interventions = config.heuristic trace blacklist initial_core eoi in
+    let heur_core = if config.always_give_initial_core_to_heuristic then initial_core
+    else compress trace (IntSet.elements cumulated_events) config.compression_algorithm in
+    let interventions = config.heuristic trace blacklist heur_core eoi in
     (*dbg (Format.asprintf "%a" Resimulator_interface.print interventions) ;*)
     let scs = [Event_has_happened eoi;Event_has_not_happened eoi] in
+
     (* Compute and sample counterfactual traces (resimulation stops when eoi has happened/has been blocked) *)
     (* Take one of the counterfactual traces that failed as witness (heuristic? random among the traces that block the eoi? smallest core?) *)
     logs (Format.asprintf "%a. Resimulating..." Resimulator_interface.print_short interventions) ;
     let (nb_failed,score,wit) = resimulate_and_sample trace eoi initial_core interventions scs config in
     let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
     logs ("Ratio S/F : "^(string_of_float ratio)) ;
+    
     if ratio >= config.threshold || nb_failed = 0 || List.length cf_exps >= config.max_counterfactual_exps
     then
     (
