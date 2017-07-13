@@ -162,14 +162,14 @@ let filter_cf_arrows arrows nb =
 
 let filter_fc_arrows arrows nb = filter_cf_arrows arrows nb
 
-let factual_events_indexes_of_cf_trace cf_trace factual_trace =
-  let rec aux acc i = match i with
-  | i when i < 0 -> acc
-  | i when get_global_id cf_trace i >= 0 ->
-  let index_eq = match search_global_id factual_trace (get_global_id cf_trace i) with None -> assert false | Some j -> j in
-  aux (IntSet.add index_eq acc) (i-1)
-  | i -> aux acc (i-1) in
-  aux (IntSet.empty) ((length cf_trace)-1)
+let f_events_indexes_of_cf_core f_trace cf_trace cf_core =
+  let f_events = List.filter (fun i -> get_global_id cf_trace i >= 0) cf_core in
+  List.map (fun i -> match search_global_id f_trace (get_global_id cf_trace i) with None -> assert false | Some j -> (j,i)) f_events
+
+let cf_events_indexes_of_f_core f_trace cf_trace f_core =
+  let cf_events = List.map (fun i -> (i, search_global_id cf_trace (get_global_id f_trace i))) f_core in
+  let cf_events = List.filter (function (_,None) -> false | (_,Some _) -> true) cf_events in
+  List.map (function (_,None) -> assert false | (i,Some j) -> (i,j)) cf_events
 
 (* Take a list of factual events and a list of cf events,
 and add events and inhibitions arrows to explain all these events. *)
@@ -220,6 +220,24 @@ let find_explanations trace cf_trace f_events cf_events other_events_in_f_core o
     )
   in aux f_events cf_events other_events_in_f_core other_events_in_cf_core
 
+let compute_cores trace cf_trace f_events cf_events config =
+  let rec aux f_events cf_events =
+    let f_core = compress trace (IntSet.elements f_events) config.compression_algorithm in
+    let cf_core = compress cf_trace (IntSet.elements cf_events) config.compression_algorithm in
+
+    let (new_f_events_1,new_cf_events_1) = List.split (f_events_indexes_of_cf_core trace cf_trace cf_core) in
+    let (new_f_events_2,new_cf_events_2) = List.split (cf_events_indexes_of_f_core trace cf_trace f_core) in
+
+    let new_f_events = if config.add_common_events_to_both_cores
+      then IntSet.union f_events (IntSet.union (IntSet.of_list (new_f_events_1)) (IntSet.of_list (new_f_events_2)))
+      else f_events in
+    let new_cf_events = if config.add_common_events_to_both_cores
+      then IntSet.union cf_events (IntSet.union (IntSet.of_list (new_cf_events_1)) (IntSet.of_list (new_cf_events_2)))
+      else cf_events in
+    if IntSet.equal f_events new_f_events && IntSet.equal cf_events new_cf_events then (f_events, cf_events, f_core, cf_core)
+    else aux new_f_events new_cf_events
+  in aux f_events cf_events
+
 let add_cf_experiments trace eoi initial_core config =
   let rec aux cf_exps cumulated_events blacklist =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
@@ -236,7 +254,7 @@ let add_cf_experiments trace eoi initial_core config =
     let (nb_failed,score,wit) = resimulate_and_sample trace eoi initial_core interventions scs config in
     let ratio = 1.0 -. (float_of_int nb_failed)/.(float_of_int config.nb_samples) in
     logs ("Ratio S/F : "^(string_of_float ratio)) ;
-    
+
     if ratio >= config.threshold || nb_failed = 0 || List.length cf_exps >= config.max_counterfactual_exps
     then
     (
@@ -260,13 +278,11 @@ let add_cf_experiments trace eoi initial_core config =
       ( logs ("No inhibition found ! Skipping...") ; (None,IntSet.empty) )
       else
       (
-        (* Compute the counterfactual causal core *)
+        (* Compute the counterfactual causal core and corresponding subtraces *)
         logs ((string_of_int (List.length inhibitions_arrows))^" inhibition arrows found ! Computing causal cores...") ;
-        let cf_core = compress cf_trace (IntSet.elements cf_events) config.compression_algorithm in
+        let (f_events, cf_events, f_core, cf_core) = compute_cores trace cf_trace f_events cf_events config in
         let cf_subtrace = subtrace_of cf_trace cf_core in
-        let f_core = compress trace (IntSet.elements f_events) config.compression_algorithm in
         let f_subtrace = subtrace_of trace f_core in
-        (* TODO : add common events option *)
         (Some (f_subtrace,cf_subtrace,inhibitions_arrows), f_events)
       ) in
       let cf_exps = match cf_exp with None -> cf_exps | Some cf_exp -> cf_exp::cf_exps in
