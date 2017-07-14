@@ -9,7 +9,7 @@ type inhibitions_finding_mode = Consider_entire_trace | Prefer_predicted_core | 
 type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
-  always_give_initial_core_to_heuristic : bool;
+  give_cumulated_core_to_heuristic : bool;
   heuristic    : Global_trace.t -> Ext_tools.IntSet.t -> int list -> int -> Resimulator_interface.interventions;
   nb_samples   : int;
   trace_scoring_heuristic : Global_trace.t -> Global_trace.t -> int list -> int -> int ;
@@ -25,8 +25,11 @@ type configuration =
 }
 
 let compress trace eois compression_algorithm =
-  let eois = List.sort_uniq Pervasives.compare eois in
-  compression_algorithm (get_trace_explorer trace) (get_var_infos trace) eois
+  if eois = [] then [] else
+  (
+    let eois = List.sort_uniq Pervasives.compare eois in
+    compression_algorithm (get_trace_explorer trace) (get_var_infos trace) eois
+  )
 
 let cf_trace_succeed eoi trace cf_trace =
 
@@ -277,15 +280,16 @@ let compute_cf_experiment trace cf_trace eoi config =
   let (f_events,cf_events,inhibition_arrows,blacklist) =
     find_explanations trace cf_trace (IntSet.singleton eoi) IntSet.empty None None config in
   if List.length inhibition_arrows = 0
-  then ( logs ("No inhibition found ! Skipping...") ; (None,IntSet.empty,blacklist) )
+  then ( logs ("No inhibition arrow found ! Skipping...") ; (None,IntSet.empty,blacklist) )
   else aux f_events cf_events inhibition_arrows blacklist (IntSet.singleton eoi) IntSet.empty
 
 let add_cf_experiments trace eoi initial_core config =
   let rec aux cf_exps cumulated_events blacklist =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
     logs "Determining interventions (heuristic)..." ;
-    let heur_core = if config.always_give_initial_core_to_heuristic then initial_core
-    else compress trace (IntSet.elements cumulated_events) config.compression_algorithm in
+    let heur_core = if config.give_cumulated_core_to_heuristic
+    then compress trace (IntSet.elements cumulated_events) config.compression_algorithm
+    else initial_core in
     let interventions = config.heuristic trace blacklist heur_core eoi in
     (*dbg (Format.asprintf "%a" Resimulator_interface.print interventions) ;*)
     let scs = [Event_has_happened eoi;Event_has_not_happened eoi] in

@@ -7,18 +7,68 @@ let max_stories = ref max_int
 let output_prefix = ref ""
 let rule_of_interest = ref ""
 let verbose = ref false
+let config = ref "regular"
 
 let options = [
   ("-o", Arg.Set_string output_prefix,
-   "prefix for the output file");
+   "prefix for the output files");
   ("-r", Arg.Set_string rule_of_interest,
    "rule of interest");
+  ("-c", Arg.Set_string config,
+   "predefined configuration : shortest|fastest|regular|complete");
   ("--max", Arg.Set_int max_stories,
    "maximal number of stories to generate");
   ("--verbose", Arg.Set verbose,
    "print annotated dot files");
 ]
 let description = ""
+
+let regular_config =
+{
+  compression_algorithm = kaflow_compression;
+  give_cumulated_core_to_heuristic = false;
+  heuristic    = Heuristics.heuristic_1 Heuristics.Persistence;
+  nb_samples   = 25;
+  trace_scoring_heuristic = Heuristics.scoring_1;
+  threshold    = 1.0;
+  max_counterfactual_exps = 5;
+  cf_inhibitions_finding_mode = Prefer_predicted_core;
+  fc_inhibitions_finding_mode = Prefer_predicted_core;
+  max_inhibitors_added_per_factual_events = 3;
+  max_inhibitors_added_per_cf_events = 1;
+  add_common_events_to_both_cores = true;
+  compute_inhibition_arrows_for_every_events = false;
+  adjust_inhibition_arrows_with_new_core_predictions = true;
+}
+let shortest_config =
+{
+  regular_config with
+  cf_inhibitions_finding_mode = Consider_only_predicted_core;
+  fc_inhibitions_finding_mode = Consider_only_predicted_core;
+  add_common_events_to_both_cores = false;
+  compute_inhibition_arrows_for_every_events = false;
+  adjust_inhibition_arrows_with_new_core_predictions = true;
+}
+let fastest_config =
+{
+  regular_config with
+  nb_samples   = 10;
+  trace_scoring_heuristic = Heuristics.scoring_shorter;
+  cf_inhibitions_finding_mode = Prefer_predicted_core;
+  fc_inhibitions_finding_mode = Prefer_predicted_core;
+  add_common_events_to_both_cores = false;
+  compute_inhibition_arrows_for_every_events = false;
+  adjust_inhibition_arrows_with_new_core_predictions = false;
+}
+let complete_config =
+{
+  regular_config with
+  cf_inhibitions_finding_mode = Prefer_predicted_core;
+  fc_inhibitions_finding_mode = Prefer_predicted_core;
+  add_common_events_to_both_cores = true;
+  compute_inhibition_arrows_for_every_events = true;
+  adjust_inhibition_arrows_with_new_core_predictions = true;
+}
 
 let get_first_eoi_after te rule_name i =
   let model = Trace_explorer.model te in
@@ -42,35 +92,26 @@ let main () = Printexc.record_backtrace true ;
   else
   (
     if !output_prefix = "" then output_prefix := "story" ;
+    let choosen_config = ref regular_config in
+    begin match !config with
+    | "regular" -> choosen_config := regular_config
+    | "shortest" -> choosen_config := shortest_config
+    | "fastest" -> choosen_config := fastest_config
+    | "complete" -> choosen_config := complete_config
+    | _ -> logs "/!\\ Unknown config. Regular config will be used."
+    end ;
 
     logs "Loading the trace file..." ;
     let te = Trace_explorer.load_from_file !file in
     logs "Done." ;
 
-    let config =
-    {
-      compression_algorithm = kaflow_compression;
-      always_give_initial_core_to_heuristic = true;
-      heuristic    = Heuristics.heuristic_1 Heuristics.Persistence;
-      nb_samples   = 25;
-      trace_scoring_heuristic = Heuristics.scoring_1;
-      threshold    = 1.0;
-      max_counterfactual_exps = 3;
-      cf_inhibitions_finding_mode = Prefer_predicted_core;
-      fc_inhibitions_finding_mode = Prefer_predicted_core;
-      max_inhibitors_added_per_factual_events = 2;
-      max_inhibitors_added_per_cf_events = 1;
-      add_common_events_to_both_cores = true;
-      compute_inhibition_arrows_for_every_events = false;
-      adjust_inhibition_arrows_with_new_core_predictions = false;
-    } in
     let eoi = ref (-1) in
     try
     (
       for _=1 to !max_stories do
         logs "\nSearching next event of interest..." ;
         eoi := get_first_eoi_after te !rule_of_interest (!eoi);
-        let es = compute_extended_story te (!eoi) config in
+        let es = compute_extended_story te (!eoi) (!choosen_config) in
 
         let oc = open_out (!output_prefix^"_"^(string_of_int (!eoi))^".dot") in
         let fmt = Format.formatter_of_out_channel oc in
