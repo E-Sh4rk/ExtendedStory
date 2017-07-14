@@ -56,12 +56,13 @@ let main () = Printexc.record_backtrace true ;
       trace_scoring_heuristic = Heuristics.scoring_1;
       threshold    = 1.0;
       max_counterfactual_exps = 3;
-      cf_inhibitions_finding_mode = Prefer_precomputed_core;
-      fc_inhibitions_finding_mode = Prefer_precomputed_core;
+      cf_inhibitions_finding_mode = Prefer_predicted_core;
+      fc_inhibitions_finding_mode = Prefer_predicted_core;
       max_inhibitors_added_per_factual_events = 2;
       max_inhibitors_added_per_cf_events = 1;
       add_common_events_to_both_cores = true;
       compute_inhibition_arrows_for_every_events = false;
+      adjust_inhibition_arrows_with_new_core_predictions = false;
     } in
     let eoi = ref (-1) in
     try
