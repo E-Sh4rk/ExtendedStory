@@ -215,7 +215,8 @@ let find_explanations trace cf_trace f_events cf_events other_events_in_f_core o
       (* Recursivity powaaa! *)
       let (f_events_2,cf_events_2,inhibitions_ids_2,blacklist_2) =
         aux f_eois cf_eois (IntSet.union f_events other_events_in_f_core) (IntSet.union cf_events other_events_in_cf_core) in
-      (IntSet.union f_events f_events_2, IntSet.union cf_events cf_events_2, arrows_fc_ids@arrows_cf_ids@inhibitions_ids_2, IntSet.union blacklist blacklist_2)
+      let inhibitions_ids = List.sort_uniq Pervasives.compare (arrows_fc_ids@arrows_cf_ids@inhibitions_ids_2) in
+      (IntSet.union f_events f_events_2, IntSet.union cf_events cf_events_2, inhibitions_ids, IntSet.union blacklist blacklist_2)
     )
   in aux f_events cf_events other_events_in_f_core other_events_in_cf_core
 
