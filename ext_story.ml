@@ -251,7 +251,6 @@ let compute_cores trace cf_trace f_events cf_events config =
 let compute_cf_experiment trace cf_trace eoi config =
   let rec aux f_events cf_events inhibition_arrows blacklist explained_f explained_cf =
     let (f_events, cf_events, f_core, cf_core) = compute_cores trace cf_trace f_events cf_events config in
-    (* Possible optimisation : don't recompute every inhibitions arrows but just for new events, and add inhibition arrows to previous ones. *)
     let (new_f_events, new_cf_events, new_inhibition_arrows, new_blacklist) =
       if config.compute_inhibition_arrows_for_every_events && config.adjust_inhibition_arrows_with_new_core_predictions
       then find_explanations trace cf_trace f_events cf_events (Some (IntSet.of_list f_core)) (Some (IntSet.of_list cf_core)) config
