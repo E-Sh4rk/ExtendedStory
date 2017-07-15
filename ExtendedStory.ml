@@ -54,8 +54,8 @@ let fastest_config =
   regular_config with
   nb_samples   = 10;
   trace_scoring_heuristic = Heuristics.scoring_shorter;
-  cf_inhibitions_finding_mode = Prefer_predicted_core;
-  fc_inhibitions_finding_mode = Prefer_predicted_core;
+  cf_inhibitions_finding_mode = Consider_entire_trace;
+  fc_inhibitions_finding_mode = Consider_entire_trace;
   add_common_events_to_both_cores = false;
   compute_inhibition_arrows_for_every_events = false;
   adjust_inhibition_arrows_with_new_core_predictions = false;
