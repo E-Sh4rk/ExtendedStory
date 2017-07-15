@@ -176,7 +176,7 @@ let cf_events_indexes_of_f_core f_trace cf_trace f_core =
   List.map (function (_,None) -> assert false | (i,Some j) -> (i,j)) cf_events
 
 (* Take a list of factual events and a list of cf events,
-and add events and inhibitions arrows to explain all these events. *)
+and return events and inhibitions arrows to explain all these events. *)
 let find_explanations trace cf_trace f_events cf_events predicted_f_core predicted_cf_core config =
   let rec aux f_events cf_events predicted_f_core predicted_cf_core =
     (* We add to the blacklist the events that have been blocked and that are at the origin of the explanations explored. *)
@@ -205,7 +205,7 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       (* For counterfactuals events *)
       let predicted_cf_core = match predicted_cf_core with
       | None -> None
-      | Some c -> if IntSet.subset f_events c then Some c else None in
+      | Some c -> if IntSet.subset cf_events c then Some c else None in
       let predicted_cf_core = if predicted_cf_core = None && config.fc_inhibitions_finding_mode <> Consider_entire_trace
       then Some (IntSet.of_list (compress cf_trace (IntSet.elements cf_events) config.compression_algorithm))
       else predicted_cf_core in
@@ -217,16 +217,16 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       let arrows_fc_ids = List.map (fun (src,c,dest) -> get_global_id trace src, c, get_global_id cf_trace dest) arrows_fc in
 
       (* Adding events to cores *)
-      let f_events = IntSet.union f_events (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty arrows_cf) in
-      let cf_events = IntSet.union cf_events (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty arrows_fc) in
       let cf_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty arrows_cf in
       let f_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty arrows_fc in
+      let f_events_involved = IntSet.union f_eois (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty arrows_cf) in
+      let cf_events_involved = IntSet.union cf_eois (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty arrows_fc) in
 
       (* Recursivity powaaa! *)
-      let (f_events_2,cf_events_2,inhibitions_ids_2,blacklist_2) =
+      let (f_events_involved_2,cf_events_involved_2,inhibitions_ids_2,blacklist_2) =
         aux f_eois cf_eois predicted_f_core predicted_cf_core in
       let inhibitions_ids = List.sort_uniq Pervasives.compare (arrows_fc_ids@arrows_cf_ids@inhibitions_ids_2) in
-      (IntSet.union f_events f_events_2, IntSet.union cf_events cf_events_2, inhibitions_ids, IntSet.union blacklist blacklist_2)
+      (IntSet.union f_events_involved f_events_involved_2, IntSet.union cf_events_involved cf_events_involved_2, inhibitions_ids, IntSet.union blacklist blacklist_2)
     )
   in aux f_events cf_events predicted_f_core predicted_cf_core
 
@@ -253,11 +253,11 @@ let compute_cf_experiment trace cf_trace eoi config =
     let (f_events, cf_events, f_core, cf_core) = compute_cores trace cf_trace f_events cf_events config in
     let (new_f_events, new_cf_events, new_inhibition_arrows, new_blacklist) =
       if config.compute_inhibition_arrows_for_every_events && config.adjust_inhibition_arrows_with_new_core_predictions
-      then find_explanations trace cf_trace f_events cf_events (Some (IntSet.of_list f_core)) (Some (IntSet.of_list cf_core)) config
+      then find_explanations trace cf_trace (IntSet.of_list f_core) (IntSet.of_list cf_core) (Some (IntSet.of_list f_core)) (Some (IntSet.of_list cf_core)) config
       else if config.compute_inhibition_arrows_for_every_events
       then
       (
-        let remaining_f = IntSet.diff f_events explained_f and remaining_cf = IntSet.diff cf_events explained_cf in
+        let remaining_f = IntSet.diff (IntSet.of_list f_core) explained_f and remaining_cf = IntSet.diff (IntSet.of_list cf_core) explained_cf in
         let (new_f_events, new_cf_events, new_inhibition_arrows, new_blacklist) =
           find_explanations trace cf_trace remaining_f remaining_cf (Some (IntSet.of_list f_core)) (Some (IntSet.of_list cf_core)) config in
         (new_f_events, new_cf_events, List.sort_uniq Pervasives.compare (new_inhibition_arrows@inhibition_arrows), new_blacklist)
@@ -265,7 +265,8 @@ let compute_cf_experiment trace cf_trace eoi config =
       else if config.adjust_inhibition_arrows_with_new_core_predictions
       then find_explanations trace cf_trace (IntSet.singleton eoi) IntSet.empty (Some (IntSet.of_list f_core)) (Some (IntSet.of_list cf_core)) config
       else (f_events, cf_events, inhibition_arrows, blacklist) in
-    let new_blacklist = IntSet.union blacklist new_blacklist in
+    let (new_f_events, new_cf_events, new_blacklist) =
+      (IntSet.union f_events new_f_events, IntSet.union cf_events new_cf_events, IntSet.union blacklist new_blacklist) in
     if IntSet.equal f_events new_f_events && IntSet.equal cf_events new_cf_events
     then
     (
@@ -274,10 +275,12 @@ let compute_cf_experiment trace cf_trace eoi config =
       let f_subtrace = subtrace_of trace f_core in
       (Some (f_subtrace,cf_subtrace,new_inhibition_arrows), new_f_events, new_blacklist)
     )
-    else aux new_f_events new_cf_events new_inhibition_arrows new_blacklist f_events cf_events
+    else aux new_f_events new_cf_events new_inhibition_arrows new_blacklist (IntSet.of_list f_core) (IntSet.of_list cf_core)
   in
-  let (f_events,cf_events,inhibition_arrows,blacklist) =
-    find_explanations trace cf_trace (IntSet.singleton eoi) IntSet.empty None None config in
+  let (f_events,cf_events) = (IntSet.singleton eoi, IntSet.empty) in
+  let (f_events_2,cf_events_2,inhibition_arrows,blacklist) =
+    find_explanations trace cf_trace f_events cf_events None None config in
+  let (f_events,cf_events) = (IntSet.union f_events f_events_2, IntSet.union cf_events cf_events_2) in
   if List.length inhibition_arrows = 0
   then ( logs ("No inhibition arrow found ! Skipping...") ; (None,IntSet.empty,blacklist) )
   else aux f_events cf_events inhibition_arrows blacklist (IntSet.singleton eoi) IntSet.empty

@@ -38,7 +38,7 @@ let regular_config =
   max_inhibitors_added_per_cf_events = 1;
   add_common_events_to_both_cores = true;
   compute_inhibition_arrows_for_every_events = false;
-  adjust_inhibition_arrows_with_new_core_predictions = true;
+  adjust_inhibition_arrows_with_new_core_predictions = false;
 }
 let shortest_config =
 {
