@@ -67,7 +67,7 @@ let complete_config =
   fc_inhibitions_finding_mode = Prefer_predicted_core;
   add_common_events_to_both_cores = true;
   compute_inhibition_arrows_for_every_events = true;
-  adjust_inhibition_arrows_with_new_core_predictions = true;
+  adjust_inhibition_arrows_with_new_core_predictions = false;
 }
 
 let get_first_eoi_after te rule_name i =

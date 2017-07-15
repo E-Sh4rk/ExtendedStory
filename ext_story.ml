@@ -228,7 +228,7 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       let inhibitions_ids = List.sort_uniq Pervasives.compare (arrows_fc_ids@arrows_cf_ids@inhibitions_ids_2) in
       (IntSet.union f_events_involved f_events_involved_2, IntSet.union cf_events_involved cf_events_involved_2, inhibitions_ids, IntSet.union blacklist blacklist_2)
     )
-  in aux f_events cf_events predicted_f_core predicted_cf_core
+  in aux f_events cf_events (Some (IntSet.of_list predicted_f_core)) (Some (IntSet.of_list predicted_cf_core))
 
 let compute_cores trace cf_trace f_events cf_events config =
   let rec aux f_events cf_events =
@@ -248,22 +248,22 @@ let compute_cores trace cf_trace f_events cf_events config =
     else aux new_f_events new_cf_events
   in aux f_events cf_events
 
-let compute_cf_experiment trace cf_trace eoi config =
+let compute_cf_experiment trace cf_trace initial_core eoi config =
   let rec aux f_events cf_events inhibition_arrows blacklist explained_f explained_cf =
     let (f_events, cf_events, f_core, cf_core) = compute_cores trace cf_trace f_events cf_events config in
     let (new_f_events, new_cf_events, new_inhibition_arrows, new_blacklist) =
       if config.compute_inhibition_arrows_for_every_events && config.adjust_inhibition_arrows_with_new_core_predictions
-      then find_explanations trace cf_trace (IntSet.of_list f_core) (IntSet.of_list cf_core) (Some (IntSet.of_list f_core)) (Some (IntSet.of_list cf_core)) config
+      then find_explanations trace cf_trace (IntSet.of_list f_core) (IntSet.of_list cf_core) f_core cf_core config
       else if config.compute_inhibition_arrows_for_every_events
       then
       (
         let remaining_f = IntSet.diff (IntSet.of_list f_core) explained_f and remaining_cf = IntSet.diff (IntSet.of_list cf_core) explained_cf in
         let (new_f_events, new_cf_events, new_inhibition_arrows, new_blacklist) =
-          find_explanations trace cf_trace remaining_f remaining_cf (Some (IntSet.of_list f_core)) (Some (IntSet.of_list cf_core)) config in
+          find_explanations trace cf_trace remaining_f remaining_cf f_core cf_core config in
         (new_f_events, new_cf_events, List.sort_uniq Pervasives.compare (new_inhibition_arrows@inhibition_arrows), new_blacklist)
       )
       else if config.adjust_inhibition_arrows_with_new_core_predictions
-      then find_explanations trace cf_trace (IntSet.singleton eoi) IntSet.empty (Some (IntSet.of_list f_core)) (Some (IntSet.of_list cf_core)) config
+      then find_explanations trace cf_trace (IntSet.singleton eoi) IntSet.empty f_core cf_core config
       else (f_events, cf_events, inhibition_arrows, blacklist) in
     let (new_f_events, new_cf_events, new_blacklist) =
       (IntSet.union f_events new_f_events, IntSet.union cf_events new_cf_events, IntSet.union blacklist new_blacklist) in
@@ -279,7 +279,7 @@ let compute_cf_experiment trace cf_trace eoi config =
   in
   let (f_events,cf_events) = (IntSet.singleton eoi, IntSet.empty) in
   let (f_events_2,cf_events_2,inhibition_arrows,blacklist) =
-    find_explanations trace cf_trace f_events cf_events None None config in
+    find_explanations trace cf_trace f_events cf_events initial_core [] config in
   let (f_events,cf_events) = (IntSet.union f_events f_events_2, IntSet.union cf_events cf_events_2) in
   if List.length inhibition_arrows = 0
   then ( logs ("No inhibition arrow found ! Skipping...") ; (None,IntSet.empty,blacklist) )
@@ -317,7 +317,7 @@ let add_cf_experiments trace eoi initial_core config =
       logs ("Resimulation score : "^(string_of_int score)^". Computing the counterfactual part...") ;
 
       (* Compute the counterfactual experiment *)
-      let (cf_exp,f_events,blacklist_2) = compute_cf_experiment trace cf_trace eoi config in
+      let (cf_exp,f_events,blacklist_2) = compute_cf_experiment trace cf_trace initial_core eoi config in
       let blacklist = IntSet.union blacklist blacklist_2 in
       let cumulated_events = IntSet.union cumulated_events f_events in
       let cf_exps = match cf_exp with None -> cf_exps | Some cf_exp -> cf_exp::cf_exps in
