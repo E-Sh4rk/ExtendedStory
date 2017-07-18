@@ -169,10 +169,10 @@ let copy ((te,vi),gi) = ((te,vi),Array.copy gi)
 let print_core tr fmt core =
   List.iter (fun i -> Format.fprintf fmt "%d ; " (get_global_id tr i)) core
 let print fmt tr =
-  let core = n_first_intergers (length tr) in
+  let core = n_first_integers (length tr) in
   List.iter (fun i -> Format.fprintf fmt "%d ; " (get_global_id tr i)) core
 let print_full fmt tr =
-  let core = n_first_intergers (length tr) in
+  let core = n_first_integers (length tr) in
   List.iter (fun i -> Format.fprintf fmt "%d (%d,%d) : %s\n" i (get_global_id tr i) (get_order tr i)
   (get_step_name (get_model tr) (get_step tr i) "")) core ;
   Format.fprintf fmt "------------------"

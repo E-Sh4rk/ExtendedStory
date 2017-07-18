@@ -39,12 +39,12 @@ let choose_edge_color settings part_nb =
     ((float_of_int part_nb)/.(float_of_int (settings.nb_cf_parts+1)),0.5,0.5)
 
 let compute_precedence subtrace =
-    let core = n_first_intergers (Global_trace.length subtrace) in
+    let core = n_first_integers (Global_trace.length subtrace) in
     let precedences = Precedence.transitive_reduction (Precedence.compute_precedence (Global_trace.get_trace_explorer subtrace) core) in
     List.map (fun (i1,i2) -> (Global_trace.get_global_id subtrace i1,Global_trace.get_global_id subtrace i2)) precedences
 
 let compute_activation subtrace =
-    let core = n_first_intergers (Global_trace.length subtrace) in
+    let core = n_first_integers (Global_trace.length subtrace) in
     let activations = Precedence.compute_strong_deps ~compute_all_activations:true (Global_trace.get_trace_explorer subtrace) core in
     List.map (fun (i1,c,i2) -> (Global_trace.get_global_id subtrace i1,c,Global_trace.get_global_id subtrace i2)) activations
 
@@ -80,7 +80,7 @@ let print_activation settings part_nb (id1,c,id2) =
 let print_factual_part settings =
     let pr x = Format.fprintf settings.fmt x in
 
-    let core = n_first_intergers (Global_trace.length settings.factual_part) in
+    let core = n_first_integers (Global_trace.length settings.factual_part) in
     let fap = List.fold_left (fun acc i -> print_factual_event settings settings.factual_part 0 i acc) IntSet.empty core in
     let prec = compute_precedence settings.factual_part in
     List.iter (print_precedence settings 0) prec ;
@@ -113,7 +113,7 @@ let print_counterfactual_part settings (_,tr,inh) part_nb fap =
 
     if settings.mode <> Hiding_counterfactual_parts then
     (
-        let core = n_first_intergers (Global_trace.length tr) in
+        let core = n_first_integers (Global_trace.length tr) in
         let fap = List.fold_left (fun acc i -> print_event settings tr part_nb i acc) fap core in
         pr "@;" ;
         List.iter (print_inhibition settings part_nb) inh ;
