@@ -241,7 +241,7 @@ let compute_cores trace cf_trace f_events cf_events config =
   let rec aux f_events cf_events =
     let f_core = compress trace (IntSet.elements f_events) config.compression_algorithm in
     let cf_core = compress cf_trace (IntSet.elements cf_events) config.compression_algorithm in
-
+    (* Adding common events *)
     let (new_f_events_1,new_cf_events_1) = List.split (f_events_indexes_of_cf_core trace cf_trace cf_core) in
     let (new_f_events_2,new_cf_events_2) = List.split (cf_events_indexes_of_f_core trace cf_trace f_core) in
 
@@ -251,13 +251,16 @@ let compute_cores trace cf_trace f_events cf_events config =
     let new_cf_events = if config.add_common_events_to_both_cores
       then IntSet.union cf_events (IntSet.union (IntSet.of_list (new_cf_events_1)) (IntSet.of_list (new_cf_events_2)))
       else cf_events in
-    if IntSet.equal f_events new_f_events && IntSet.equal cf_events new_cf_events then (f_events, cf_events, f_core, cf_core)
+    (* Fixpoint search *)
+    if IntSet.subset new_f_events (IntSet.of_list f_core) && IntSet.subset new_cf_events (IntSet.of_list cf_core)
+    then (new_f_events, new_cf_events, f_core, cf_core)
     else aux new_f_events new_cf_events
   in aux f_events cf_events
 
 let compute_cf_experiment trace cf_trace initial_core eoi config =
   let rec aux f_events cf_events inhibition_arrows blocked blacklist explained_f explained_cf =
     let (f_events, cf_events, f_core, cf_core) = compute_cores trace cf_trace f_events cf_events config in
+    (* Adding explanations (inhibition arrows and events involved) *)
     let (new_f_events, new_cf_events, new_inhibition_arrows, new_blocked, new_blacklist) =
       if config.compute_inhibition_arrows_for_every_events && config.adjust_inhibition_arrows_with_new_core_predictions
       then find_explanations trace cf_trace (IntSet.of_list f_core) (IntSet.of_list cf_core) f_core cf_core config
@@ -274,7 +277,8 @@ let compute_cf_experiment trace cf_trace initial_core eoi config =
       else (f_events, cf_events, inhibition_arrows, blocked, blacklist) in
     let (new_f_events, new_cf_events, new_blacklist) =
       (IntSet.union f_events new_f_events, IntSet.union cf_events new_cf_events, IntSet.union blacklist new_blacklist) in
-    if IntSet.equal f_events new_f_events && IntSet.equal cf_events new_cf_events
+    (* Fixpoint search *)
+    if IntSet.subset new_f_events (IntSet.of_list f_core) && IntSet.subset new_cf_events (IntSet.of_list cf_core)
     then
     (
       (* We pack it in a counterfactual experiment. *)
