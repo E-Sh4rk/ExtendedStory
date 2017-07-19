@@ -108,7 +108,7 @@ let print_inhibition settings part_nb (id1,c,id2) =
     let gid1 = id_to_gid settings part_nb id1 and gid2 = id_to_gid settings part_nb id2 in
     print_inh_arrow settings.options (choose_edge_color settings part_nb) settings.model settings.fmt (gid1,c,gid2)
 
-let print_counterfactual_part settings (_,tr,inh) part_nb fap =
+let print_counterfactual_part settings (_,tr,inh,_) part_nb fap =
     let pr x = Format.fprintf settings.fmt x in
 
     if settings.mode <> Hiding_counterfactual_parts then

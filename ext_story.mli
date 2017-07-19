@@ -1,5 +1,6 @@
 
-type cf_experiment = Global_trace.t * Global_trace.t * ((int * Grid.constr * int) list) (* (factual_subtrace, cf_subtrace, inhibition arrows) *)
+type cf_experiment = Global_trace.t * Global_trace.t * ((int * Grid.constr * int) list) * Ext_tools.IntSet.t
+(* (factual_subtrace, cf_subtrace, inhibition arrows, blocked events) *)
 type extended_story = Global_trace.t * (cf_experiment list) (* (cumulated_factual_subtrace, counterfactual_experiments) *)
 
 type inhibitions_finding_mode = Consider_entire_trace | Prefer_predicted_core | Consider_only_predicted_core
