@@ -214,6 +214,7 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       let arrows_cf = List.flatten (List.map (fun lst -> filter_cf_arrows lst config.max_inhibitors_added_per_factual_events) arrows_cf) in
       let arrows_cf_ids = List.map (fun ((src,c,dest),_) -> get_global_id cf_trace src, c, get_global_id trace dest) arrows_cf in
       let f_events_involved = List.fold_left (fun acc (_,inv) -> IntSet.union acc inv) IntSet.empty arrows_cf in
+      let f_events_involved = IntSet.union f_events_involved (IntSet.of_list no_indirect_reason) in
 
       (* For counterfactuals events *)
       let predicted_cf_core = match predicted_cf_core with
@@ -253,19 +254,19 @@ let compute_cores trace cf_trace f_events cf_events config =
     let (new_f_events_1,new_cf_events_1) = List.split (f_events_indexes_of_cf_core trace cf_trace cf_core) in
     let (new_f_events_2,new_cf_events_2) = List.split (cf_events_indexes_of_f_core trace cf_trace f_core) in
 
-    let new_f_events = if config.add_common_events_to_both_cores
+    let f_events = if config.add_common_events_to_both_cores
       then IntSet.union f_events (IntSet.union (IntSet.of_list (new_f_events_1)) (IntSet.of_list (new_f_events_2)))
       else f_events in
-    let new_cf_events = if config.add_common_events_to_both_cores
+    let cf_events = if config.add_common_events_to_both_cores
       then IntSet.union cf_events (IntSet.union (IntSet.of_list (new_cf_events_1)) (IntSet.of_list (new_cf_events_2)))
       else cf_events in
     (* Fixpoint search *)
-    if IntSet.subset new_f_events (IntSet.of_list f_core) && IntSet.subset new_cf_events (IntSet.of_list cf_core)
-    then (new_f_events, new_cf_events, f_core, cf_core)
-    else aux new_f_events new_cf_events
+    if IntSet.subset f_events (IntSet.of_list f_core) && IntSet.subset cf_events (IntSet.of_list cf_core)
+    then (f_events, cf_events, f_core, cf_core)
+    else aux f_events cf_events
   in aux f_events cf_events
 
-let compute_cf_experiment trace cf_trace initial_core eoi config =
+let compute_cf_experiment trace cf_trace eoi config =
   let rec aux f_events cf_events inhibition_arrows blocked blacklist explained_f explained_cf cumulative_f_events cumulative_cf_events =
     let (f_events, cf_events, f_core, cf_core) = compute_cores trace cf_trace f_events cf_events config in
     (* Adding explanations (inhibition arrows and events involved) *)
@@ -338,7 +339,7 @@ let add_cf_experiments trace eoi initial_core config =
       logs ("Resimulation score : "^(string_of_int score)^". Computing the counterfactual part...") ;
 
       (* Compute the counterfactual experiment *)
-      let (cf_exp,blacklist_2) = compute_cf_experiment trace cf_trace initial_core eoi config in
+      let (cf_exp,blacklist_2) = compute_cf_experiment trace cf_trace eoi config in
       let blacklist = IntSet.union blacklist blacklist_2 in
       let cumulated_events = match cf_exp with
       | None -> cumulated_events
