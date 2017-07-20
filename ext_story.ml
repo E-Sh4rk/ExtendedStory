@@ -115,16 +115,17 @@ let activation_event_between trace mode core index1 index2 constr =
   else core_act
 
 type inhibition_reason =
-  | Inhibition of int * Grid.constr * int
-  | No_reason of int
+  | Inhibition of (int * Grid.constr * int) * IntSet.t (* inhibition arrow, events involved *)
+  | Blocked of int * IntSet.t (* event blocked, events involved *)
 
 let is_valid_inhibitor trace1 trace2 i1 =
   if i1 < 0 || i1 >= length trace1 then false
   else if search_global_id trace2 (get_global_id trace1 i1) = None then true
   else false
 
+(* Return the inhibitive arrows and the events involved for an event that happened only in trace1. *)
 let find_inhibitive_arrows trace1 trace2 mode core eoi1 =
-  let rec rewind (src,c,dest) =
+  let rec rewind involved (src,c,dest) =
     (*dbg (Format.asprintf "Inh? : %d (%d,%d) -> %d (%d,%d)" src (get_global_id trace2 src) (get_order trace2 src)
     dest (get_global_id trace1 dest) (get_order trace1 dest));*)
     let index1_eq = search_first_after_order trace1 (get_order trace2 src) in
@@ -143,27 +144,28 @@ let find_inhibitive_arrows trace1 trace2 mode core eoi1 =
     dest (get_global_id trace1 dest) (get_order trace1 dest));*)
     assert ((get_global_id trace2 src < 0 && get_global_id trace1 dest >= 0)
          || (get_global_id trace2 src >= 0 && get_global_id trace1 dest < 0));
-    [Inhibition (src,c,dest)]
+    [Inhibition ((src,c,dest), involved)]
     | Some i ->
     (*dbg (Format.asprintf "Act : %d (%d,%d)" i (get_global_id trace1 i) (get_order trace1 i));*)
-    aux i
-  and aux dest =
+    aux involved i
+  and aux involved dest =
+    let involved = IntSet.add dest involved in
     let index2_eq = search_last_before_order trace2 (get_order trace1 dest) in
     let index2_eq = match index2_eq with None -> -1 | Some i -> i in
     let inh = List.map (fun c -> (last_inhibitive_event_before trace2 (index2_eq+1) c, c)) (get_tests trace1 dest) in
     let inh = List.filter (fun (opt,_) -> opt <> None) inh in
     let inh = List.map (function (Some src,c) -> (src,c,dest) | _ -> assert false) inh in
     match inh with
-    | [] -> [No_reason (dest)]
-    | inh -> List.flatten (List.map rewind inh)
+    | [] -> [Blocked (dest, involved)]
+    | inh -> List.flatten (List.map (rewind involved) inh)
   in
-  if is_valid_inhibitor trace1 trace2 eoi1 then aux eoi1 else []
+  if is_valid_inhibitor trace1 trace2 eoi1 then aux IntSet.empty eoi1 else []
 
 let filter_cf_arrows arrows nb =
-  let src = List.map (fun (s,_,_) -> s) arrows in
+  let src = List.map (fun ((s,_,_),_) -> s) arrows in
   let src = List.sort_uniq Pervasives.compare src in
   let src = IntSet.of_list (cut_after_index (nb-1) src) in
-  List.filter (fun (s,_,_) -> IntSet.mem s src) arrows
+  List.filter (fun ((s,_,_),_) -> IntSet.mem s src) arrows
 
 let filter_fc_arrows arrows nb = filter_cf_arrows arrows nb
 
@@ -176,11 +178,13 @@ let cf_events_indexes_of_f_core f_trace cf_trace f_core =
   let cf_events = List.filter (function (_,None) -> false | (_,Some _) -> true) cf_events in
   List.map (function (_,None) -> assert false | (i,Some j) -> (i,j)) cf_events
 
-(* Take a list of factual events and a list of cf events,
-and return events, inhibitions arrows and directly blocked events that explain all these events. *)
+(* Take a list of initial factual events and a list of initial cf events,
+and return all events, inhibitions arrows and directly blocked events necessary to explain the eventual absence of these initial events from the other trace. *)
 let find_explanations trace cf_trace f_events cf_events predicted_f_core predicted_cf_core config =
   let rec aux f_events cf_events predicted_f_core predicted_cf_core =
-    (* We add to the blacklist the events that have been blocked and that are at the origin of the explanations explored. *)
+    (* We ignore events that are common *)
+    let f_events = IntSet.filter (is_valid_inhibitor trace cf_trace) f_events in
+    let cf_events = IntSet.filter (is_valid_inhibitor cf_trace trace) cf_events in
     (* Init case *)
     if IntSet.is_empty f_events && IntSet.is_empty cf_events then (IntSet.empty, IntSet.empty, [], IntSet.empty, IntSet.empty)
     else
@@ -195,18 +199,21 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       let f_events_lst = IntSet.elements f_events in
       let reasons_f = List.map (fun e -> find_inhibitive_arrows trace cf_trace config.cf_inhibitions_finding_mode predicted_f_core e) f_events_lst in
 
-      let origins_blocked = List.map (function No_reason i -> i | Inhibition _ -> assert false)
-        (List.filter (function No_reason _ -> true | Inhibition _ -> false) (List.flatten reasons_f)) in
+      (* We add to the blacklist the events that have been blocked and that are at the origin of explanations explored. *)
+      let no_indirect_reason = List.map (fun rs -> not (List.exists (function Inhibition _ -> true | Blocked _ -> false) rs)) reasons_f in
+      let origins_blocked = List.flatten (List.map2 (fun b rs -> if b then rs else []) no_indirect_reason reasons_f) in
+      let origins_blocked = List.map (function Blocked (i, _) -> i | Inhibition _ -> assert false) origins_blocked in
       let blacklist = IntSet.of_list origins_blocked in
 
-      let directly_blocked = List.map (fun rs -> List.exists (function Inhibition _ -> true | No_reason _ -> false) rs) reasons_f in
-      let directly_blocked = List.concat (List.map2 (fun b i -> if b then [] else [i]) directly_blocked f_events_lst) in
-      let directly_blocked_ids = IntSet.of_list (List.map (fun i -> get_global_id trace i) directly_blocked) in
+      (* Events that have no indirect reason for not being common are indicated as blocked. *)
+      let no_indirect_reason = List.flatten (List.map2 (fun b i -> if b then [i] else []) no_indirect_reason f_events_lst) in
+      let no_indirect_reason_ids = IntSet.of_list (List.map (fun i -> get_global_id trace i) no_indirect_reason) in
 
-      let arrows_cf = List.map (fun lst -> List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
-        (List.filter (function No_reason _ -> false | Inhibition _ -> true) lst)) reasons_f in
+      let arrows_cf = List.map (fun lst -> List.map (function Inhibition (arrow,inv) -> (arrow,inv) | Blocked _ -> assert false)
+        (List.filter (function Blocked _ -> false | Inhibition _ -> true) lst)) reasons_f in
       let arrows_cf = List.flatten (List.map (fun lst -> filter_cf_arrows lst config.max_inhibitors_added_per_factual_events) arrows_cf) in
-      let arrows_cf_ids = List.map (fun (src,c,dest) -> get_global_id cf_trace src, c, get_global_id trace dest) arrows_cf in
+      let arrows_cf_ids = List.map (fun ((src,c,dest),_) -> get_global_id cf_trace src, c, get_global_id trace dest) arrows_cf in
+      let f_events_involved = List.fold_left (fun acc (_,inv) -> IntSet.union acc inv) IntSet.empty arrows_cf in
 
       (* For counterfactuals events *)
       let predicted_cf_core = match predicted_cf_core with
@@ -217,23 +224,24 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       else predicted_cf_core in
       let reasons_cf = List.map (fun e -> find_inhibitive_arrows cf_trace trace config.fc_inhibitions_finding_mode predicted_cf_core e) (IntSet.elements cf_events) in
 
-      let arrows_fc = List.map (fun lst -> List.map (function Inhibition (s,c,d) -> (s,c,d) | No_reason _ -> assert false)
-        (List.filter (function No_reason _ -> false | Inhibition _ -> true) lst)) reasons_cf in
+      let arrows_fc = List.map (fun lst -> List.map (function Inhibition (arrow,inv) -> (arrow,inv) | Blocked _ -> assert false)
+        (List.filter (function Blocked _ -> false | Inhibition _ -> true) lst)) reasons_cf in
       let arrows_fc = List.flatten (List.map (fun lst -> filter_fc_arrows lst config.max_inhibitors_added_per_cf_events) arrows_fc) in
-      let arrows_fc_ids = List.map (fun (src,c,dest) -> get_global_id trace src, c, get_global_id cf_trace dest) arrows_fc in
+      let arrows_fc_ids = List.map (fun ((src,c,dest),_) -> get_global_id trace src, c, get_global_id cf_trace dest) arrows_fc in
+      let cf_events_involved = List.fold_left (fun acc (_,inv) -> IntSet.union acc inv) IntSet.empty arrows_fc in
 
       (* Adding events to cores *)
-      let cf_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty arrows_cf in
-      let f_eois = List.fold_left (fun acc (s,_,_) -> IntSet.add s acc) IntSet.empty arrows_fc in
-      let f_events_involved = IntSet.union f_eois (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty arrows_cf) in
-      let cf_events_involved = IntSet.union cf_eois (List.fold_left (fun acc (_,_,d) -> IntSet.add d acc) IntSet.empty arrows_fc) in
+      let cf_eois = List.fold_left (fun acc ((s,_,_),_) -> IntSet.add s acc) IntSet.empty arrows_cf in
+      let f_eois = List.fold_left (fun acc ((s,_,_),_) -> IntSet.add s acc) IntSet.empty arrows_fc in
+      let f_events_involved = IntSet.union f_eois f_events_involved in
+      let cf_events_involved = IntSet.union cf_eois cf_events_involved in
 
       (* Recursivity powaaa! *)
-      let (f_events_involved_2,cf_events_involved_2,inhibitions_ids_2,directly_blocked_ids_2,blacklist_2) =
+      let (f_events_involved_2,cf_events_involved_2,inhibitions_ids_2,no_indirect_reason_ids_2,blacklist_2) =
         aux f_eois cf_eois predicted_f_core predicted_cf_core in
       let inhibitions_ids = List.sort_uniq Pervasives.compare (arrows_fc_ids@arrows_cf_ids@inhibitions_ids_2) in
       (IntSet.union f_events_involved f_events_involved_2, IntSet.union cf_events_involved cf_events_involved_2, inhibitions_ids, 
-      IntSet.union directly_blocked_ids directly_blocked_ids_2,IntSet.union blacklist blacklist_2)
+      IntSet.union no_indirect_reason_ids no_indirect_reason_ids_2,IntSet.union blacklist blacklist_2)
     )
   in aux f_events cf_events (Some (IntSet.of_list predicted_f_core)) (Some (IntSet.of_list predicted_cf_core))
 
@@ -258,10 +266,10 @@ let compute_cores trace cf_trace f_events cf_events config =
   in aux f_events cf_events
 
 let compute_cf_experiment trace cf_trace initial_core eoi config =
-  let rec aux f_events cf_events inhibition_arrows blocked blacklist explained_f explained_cf =
+  let rec aux f_events cf_events inhibition_arrows blocked blacklist explained_f explained_cf cumulative_f_events cumulative_cf_events =
     let (f_events, cf_events, f_core, cf_core) = compute_cores trace cf_trace f_events cf_events config in
     (* Adding explanations (inhibition arrows and events involved) *)
-    let (new_f_events, new_cf_events, new_inhibition_arrows, new_blocked, new_blacklist) =
+    let (f_events, cf_events, inhibition_arrows, blocked, blacklist) =
       if config.compute_inhibition_arrows_for_every_events && config.adjust_inhibition_arrows_with_new_core_predictions
       then find_explanations trace cf_trace (IntSet.of_list f_core) (IntSet.of_list cf_core) f_core cf_core config
       else if config.compute_inhibition_arrows_for_every_events
@@ -270,31 +278,33 @@ let compute_cf_experiment trace cf_trace initial_core eoi config =
         let remaining_f = IntSet.diff (IntSet.of_list f_core) explained_f and remaining_cf = IntSet.diff (IntSet.of_list cf_core) explained_cf in
         let (new_f_events, new_cf_events, new_inhibition_arrows, new_blocked, new_blacklist) =
           find_explanations trace cf_trace remaining_f remaining_cf f_core cf_core config in
-        (new_f_events, new_cf_events, List.sort_uniq Pervasives.compare (new_inhibition_arrows@inhibition_arrows), IntSet.union blocked new_blocked, new_blacklist)
+        (IntSet.union f_events new_f_events, IntSet.union cf_events new_cf_events,
+        List.sort_uniq Pervasives.compare (new_inhibition_arrows@inhibition_arrows), IntSet.union blocked new_blocked, IntSet.union blacklist new_blacklist)
       )
       else if config.adjust_inhibition_arrows_with_new_core_predictions
       then find_explanations trace cf_trace (IntSet.singleton eoi) IntSet.empty f_core cf_core config
       else (f_events, cf_events, inhibition_arrows, blocked, blacklist) in
-    let (new_f_events, new_cf_events, new_blacklist) =
-      (IntSet.union f_events new_f_events, IntSet.union cf_events new_cf_events, IntSet.union blacklist new_blacklist) in
+    (* To prevent infinite loops *)
+    let (f_events, cf_events) = if IntSet.subset f_events cumulative_f_events && IntSet.subset cf_events cumulative_cf_events
+    then (cumulative_f_events, cumulative_cf_events) else (f_events, cf_events) in
+    let (cumulative_f_events, cumulative_cf_events) =
+      (IntSet.union cumulative_f_events f_events, IntSet.union cumulative_cf_events cf_events) in
     (* Fixpoint search *)
-    if IntSet.subset new_f_events (IntSet.of_list f_core) && IntSet.subset new_cf_events (IntSet.of_list cf_core)
+    if IntSet.subset f_events (IntSet.of_list f_core) && IntSet.subset cf_events (IntSet.of_list cf_core)
     then
     (
       (* We pack it in a counterfactual experiment. *)
-      let cf_subtrace = subtrace_of cf_trace cf_core in
-      let f_subtrace = subtrace_of trace f_core in
-      (Some (f_subtrace,cf_subtrace,new_inhibition_arrows,new_blocked), new_blacklist)
+      if List.length inhibition_arrows = 0 then ( logs ("No inhibition arrow found ! Skipping...") ; (None,blacklist) )
+      else
+      (
+        let cf_subtrace = subtrace_of cf_trace cf_core in
+        let f_subtrace = subtrace_of trace f_core in
+        (Some (f_subtrace,cf_subtrace,inhibition_arrows,blocked),blacklist)
+      )
     )
-    else aux new_f_events new_cf_events new_inhibition_arrows new_blocked new_blacklist (IntSet.of_list f_core) (IntSet.of_list cf_core)
+    else aux f_events cf_events inhibition_arrows blocked blacklist (IntSet.of_list f_core) (IntSet.of_list cf_core) cumulative_f_events cumulative_cf_events
   in
-  let (f_events,cf_events) = (IntSet.singleton eoi, IntSet.empty) in
-  let (f_events_2,cf_events_2,inhibition_arrows,blocked,blacklist) =
-    find_explanations trace cf_trace f_events cf_events initial_core [] config in
-  let (f_events,cf_events) = (IntSet.union f_events f_events_2, IntSet.union cf_events cf_events_2) in
-  if List.length inhibition_arrows = 0
-  then ( logs ("No inhibition arrow found ! Skipping...") ; (None,blacklist) )
-  else aux f_events cf_events inhibition_arrows blocked blacklist (IntSet.singleton eoi) IntSet.empty
+  aux (IntSet.singleton eoi) IntSet.empty [] IntSet.empty IntSet.empty IntSet.empty IntSet.empty IntSet.empty IntSet.empty
 
 let add_cf_experiments trace eoi initial_core config =
   let rec aux cf_exps cumulated_events blacklist =
