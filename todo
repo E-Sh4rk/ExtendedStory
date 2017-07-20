@@ -1,0 +1,2 @@
+ - Add all events met to the core when adding an inhibition arrow (not just the last one), however we are not sure that there will be activation relations at the end.
+ - For settings different that COnsider_only_trace, system for not keepin old constraints but that guarantee termination ?
