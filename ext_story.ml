@@ -2,7 +2,7 @@ open Resimulator_interface
 open Ext_tools
 open Global_trace
 
-type cf_experiment = Global_trace.t * Global_trace.t * ((int * Grid.constr * int) list) * Ext_tools.IntSet.t
+type cf_experiment = Global_trace.t * Global_trace.t * Ext_tools.InhSet.t * Ext_tools.IntSet.t
 (* (factual_subtrace, cf_subtrace, inhibition arrows, blocked events) *)
 type extended_story = Global_trace.t * (cf_experiment list) (* (cumulated_factual_subtrace, counterfactual_experiments) *)
 
@@ -230,7 +230,7 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
     let f_events = IntSet.filter (is_valid_inhibitor trace cf_trace) f_events in
     let cf_events = IntSet.filter (is_valid_inhibitor cf_trace trace) cf_events in
     (* Init case *)
-    if IntSet.is_empty f_events && IntSet.is_empty cf_events then (IntSet.empty, IntSet.empty, [], IntSet.empty)
+    if IntSet.is_empty f_events && IntSet.is_empty cf_events then (IntSet.empty, IntSet.empty, InhSet.empty, IntSet.empty)
     else
     (
       (* For factual events *)
@@ -254,7 +254,7 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       let arrows_cf = List.map (fun lst -> List.map (function Inhibition (arrow,inv) -> (arrow,inv) | Blocked _ -> assert false)
         (List.filter (function Blocked _ -> false | Inhibition _ -> true) lst)) reasons_f in
       let arrows_cf = List.flatten (List.map (fun lst -> filter_cf_arrows lst config.max_inhibitors_added_per_factual_events) arrows_cf) in
-      let arrows_cf_ids = List.map (fun ((src,c,dest),_) -> get_global_id cf_trace src, c, get_global_id trace dest) arrows_cf in
+      let arrows_cf_ids = InhSet.of_list (List.map (fun ((src,c,dest),_) -> get_global_id cf_trace src, c, get_global_id trace dest) arrows_cf) in
       let f_events_involved = IntSet.union f_events_involved (List.fold_left (fun acc (_,inv) -> IntSet.union acc inv) IntSet.empty arrows_cf) in
 
       (* For counterfactuals events *)
@@ -271,7 +271,7 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       let arrows_fc = List.map (fun lst -> List.map (function Inhibition (arrow,inv) -> (arrow,inv) | Blocked _ -> assert false)
         (List.filter (function Blocked _ -> false | Inhibition _ -> true) lst)) reasons_cf in
       let arrows_fc = List.flatten (List.map (fun lst -> filter_fc_arrows lst config.max_inhibitors_added_per_cf_events) arrows_fc) in
-      let arrows_fc_ids = List.map (fun ((src,c,dest),_) -> get_global_id trace src, c, get_global_id cf_trace dest) arrows_fc in
+      let arrows_fc_ids = InhSet.of_list (List.map (fun ((src,c,dest),_) -> get_global_id trace src, c, get_global_id cf_trace dest) arrows_fc) in
       let cf_events_involved = List.fold_left (fun acc (_,inv) -> IntSet.union acc inv) IntSet.empty arrows_fc in
 
       (* Recursivity powaaa! *)
@@ -279,9 +279,8 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       let f_eois = List.fold_left (fun acc ((s,_,_),_) -> IntSet.add s acc) IntSet.empty arrows_fc in
       let (f_events_involved_2,cf_events_involved_2,inhibitions_ids_2,origins_blocked_ids_2) =
         aux f_eois cf_eois predicted_f_core predicted_cf_core in
-      let inhibitions_ids = List.sort_uniq Pervasives.compare (arrows_fc_ids@arrows_cf_ids@inhibitions_ids_2) in
       (IntSet.union f_events_involved f_events_involved_2, IntSet.union cf_events_involved cf_events_involved_2,
-      inhibitions_ids, IntSet.union origins_blocked_ids origins_blocked_ids_2)
+      InhSet.union (InhSet.union arrows_fc_ids arrows_cf_ids) inhibitions_ids_2, IntSet.union origins_blocked_ids origins_blocked_ids_2)
     )
   in aux f_events cf_events (Some (IntSet.of_list predicted_f_core)) (Some (IntSet.of_list predicted_cf_core))
 
@@ -320,7 +319,7 @@ let compute_cf_experiment trace cf_trace eoi config =
         let (new_f_events, new_cf_events, new_inhibition_arrows, new_blocked) =
           find_explanations trace cf_trace remaining_f remaining_cf f_core cf_core config in
         (IntSet.union f_events new_f_events, IntSet.union cf_events new_cf_events,
-        List.sort_uniq Pervasives.compare (new_inhibition_arrows@inhibition_arrows), IntSet.union blocked new_blocked)
+        InhSet.union new_inhibition_arrows inhibition_arrows, IntSet.union blocked new_blocked)
       ) in
     (* To prevent infinite loops *)
     let (f_events, cf_events) = if IntSet.subset f_events cumulative_f_events && IntSet.subset cf_events cumulative_cf_events
@@ -332,7 +331,7 @@ let compute_cf_experiment trace cf_trace eoi config =
     then
     (
       (* We pack it in a counterfactual experiment. *)
-      if List.length inhibition_arrows = 0 then ( logs ("No inhibition arrow found ! Skipping...") ; (None,blocked) )
+      if InhSet.cardinal inhibition_arrows = 0 then ( logs ("No inhibition arrow found ! Skipping...") ; (None,blocked) )
       else
       (
         let cf_subtrace = subtrace_of cf_trace cf_core in
@@ -342,7 +341,7 @@ let compute_cf_experiment trace cf_trace eoi config =
     )
     else aux f_events cf_events inhibition_arrows blocked f_to_explains cf_to_explains cumulative_f_events cumulative_cf_events
   in
-  aux (IntSet.singleton eoi) IntSet.empty [] IntSet.empty IntSet.empty IntSet.empty IntSet.empty IntSet.empty
+  aux (IntSet.singleton eoi) IntSet.empty InhSet.empty IntSet.empty IntSet.empty IntSet.empty IntSet.empty IntSet.empty
 
 let add_cf_experiments trace eoi initial_core config =
   let rec aux cf_exps cumulated_events blacklist =

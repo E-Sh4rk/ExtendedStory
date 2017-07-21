@@ -116,7 +116,7 @@ let print_counterfactual_part settings (_,tr,inh,_) part_nb fap =
         let core = n_first_integers (Global_trace.length tr) in
         let fap = List.fold_left (fun acc i -> print_event settings tr part_nb i acc) fap core in
         pr "@;" ;
-        List.iter (print_inhibition settings part_nb) inh ;
+        InhSet.iter (print_inhibition settings part_nb) inh ;
         pr "@;" ;
 
         let prec = compute_precedence tr in
