@@ -45,8 +45,8 @@ let faster_regular_config =
   regular_config with
   nb_samples = 10;
   trace_scoring_heuristic = Heuristics.scoring_shorter;
-  cf_inhibitions_finding_mode = Consider_entire_trace;
-  fc_inhibitions_finding_mode = Consider_entire_trace;
+  cf_inhibitions_finding_mode = Prefer_predicted_core;
+  fc_inhibitions_finding_mode = Prefer_predicted_core;
   adjust_inhibition_arrows_with_new_core_predictions = false;
 }
 let shortest_config =
@@ -60,8 +60,8 @@ let faster_shortest_config =
   shortest_config with
   nb_samples = 10;
   trace_scoring_heuristic = Heuristics.scoring_shorter;
-  cf_inhibitions_finding_mode = Consider_entire_trace;
-  fc_inhibitions_finding_mode = Consider_entire_trace;
+  cf_inhibitions_finding_mode = Prefer_predicted_core;
+  fc_inhibitions_finding_mode = Prefer_predicted_core;
   adjust_inhibition_arrows_with_new_core_predictions = false;
 }
 let complete_config =
@@ -75,8 +75,8 @@ let faster_complete_config =
   complete_config with
   nb_samples = 10;
   trace_scoring_heuristic = Heuristics.scoring_shorter;
-  cf_inhibitions_finding_mode = Consider_entire_trace;
-  fc_inhibitions_finding_mode = Consider_entire_trace;
+  cf_inhibitions_finding_mode = Prefer_predicted_core;
+  fc_inhibitions_finding_mode = Prefer_predicted_core;
   adjust_inhibition_arrows_with_new_core_predictions = false;
 }
 

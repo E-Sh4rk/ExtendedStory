@@ -226,13 +226,9 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       let arrows_fc_ids = List.map (fun ((src,c,dest),_) -> get_global_id trace src, c, get_global_id cf_trace dest) arrows_fc in
       let cf_events_involved = List.fold_left (fun acc (_,inv) -> IntSet.union acc inv) IntSet.empty arrows_fc in
 
-      (* Adding events to cores *)
+      (* Recursivity powaaa! *)
       let cf_eois = List.fold_left (fun acc ((s,_,_),_) -> IntSet.add s acc) IntSet.empty arrows_cf in
       let f_eois = List.fold_left (fun acc ((s,_,_),_) -> IntSet.add s acc) IntSet.empty arrows_fc in
-      let f_events_involved = IntSet.union f_eois f_events_involved in
-      let cf_events_involved = IntSet.union cf_eois cf_events_involved in
-
-      (* Recursivity powaaa! *)
       let (f_events_involved_2,cf_events_involved_2,inhibitions_ids_2,origins_blocked_ids_2) =
         aux f_eois cf_eois predicted_f_core predicted_cf_core in
       let inhibitions_ids = List.sort_uniq Pervasives.compare (arrows_fc_ids@arrows_cf_ids@inhibitions_ids_2) in
@@ -265,21 +261,19 @@ let compute_cf_experiment trace cf_trace eoi config =
   let rec aux f_events cf_events inhibition_arrows blocked explained_f explained_cf cumulative_f_events cumulative_cf_events =
     let (f_events, cf_events, f_core, cf_core) = compute_cores trace cf_trace f_events cf_events config in
     (* Adding explanations (inhibition arrows and events involved) *)
+    let (f_to_explains, cf_to_explains) = if config.compute_inhibition_arrows_for_every_events
+    then (IntSet.of_list f_core, IntSet.of_list cf_core) else (IntSet.singleton eoi, IntSet.empty) in
     let (f_events, cf_events, inhibition_arrows, blocked) =
-      if config.compute_inhibition_arrows_for_every_events && config.adjust_inhibition_arrows_with_new_core_predictions
-      then find_explanations trace cf_trace (IntSet.of_list f_core) (IntSet.of_list cf_core) f_core cf_core config
-      else if config.compute_inhibition_arrows_for_every_events
-      then
+      if config.adjust_inhibition_arrows_with_new_core_predictions
+      then find_explanations trace cf_trace f_to_explains cf_to_explains f_core cf_core config
+      else
       (
-        let remaining_f = IntSet.diff (IntSet.of_list f_core) explained_f and remaining_cf = IntSet.diff (IntSet.of_list cf_core) explained_cf in
+        let remaining_f = IntSet.diff f_to_explains explained_f and remaining_cf = IntSet.diff cf_to_explains explained_cf in
         let (new_f_events, new_cf_events, new_inhibition_arrows, new_blocked) =
           find_explanations trace cf_trace remaining_f remaining_cf f_core cf_core config in
         (IntSet.union f_events new_f_events, IntSet.union cf_events new_cf_events,
         List.sort_uniq Pervasives.compare (new_inhibition_arrows@inhibition_arrows), IntSet.union blocked new_blocked)
-      )
-      else if config.adjust_inhibition_arrows_with_new_core_predictions
-      then find_explanations trace cf_trace (IntSet.singleton eoi) IntSet.empty f_core cf_core config
-      else (f_events, cf_events, inhibition_arrows, blocked) in
+      ) in
     (* To prevent infinite loops *)
     let (f_events, cf_events) = if IntSet.subset f_events cumulative_f_events && IntSet.subset cf_events cumulative_cf_events
     then (cumulative_f_events, cumulative_cf_events) else (f_events, cf_events) in
@@ -298,7 +292,7 @@ let compute_cf_experiment trace cf_trace eoi config =
         (Some (f_subtrace,cf_subtrace,inhibition_arrows,blocked),blocked)
       )
     )
-    else aux f_events cf_events inhibition_arrows blocked (IntSet.of_list f_core) (IntSet.of_list cf_core) cumulative_f_events cumulative_cf_events
+    else aux f_events cf_events inhibition_arrows blocked f_to_explains cf_to_explains cumulative_f_events cumulative_cf_events
   in
   aux (IntSet.singleton eoi) IntSet.empty [] IntSet.empty IntSet.empty IntSet.empty IntSet.empty IntSet.empty
 
