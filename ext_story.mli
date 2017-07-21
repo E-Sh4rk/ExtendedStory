@@ -4,6 +4,7 @@ type cf_experiment = Global_trace.t * Global_trace.t * ((int * Grid.constr * int
 type extended_story = Global_trace.t * (cf_experiment list) (* (cumulated_factual_subtrace, counterfactual_experiments) *)
 
 type inhibitions_finding_mode = Consider_entire_trace | Prefer_predicted_core | Consider_only_predicted_core
+type activation_paths_mode = Do_not_minimize | Minimize | Do_not_impose_activation_path
 type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
@@ -14,8 +15,11 @@ type configuration =
   threshold    : float;
   max_counterfactual_exps : int;
   cf_inhibitions_finding_mode : inhibitions_finding_mode;
+  (* Do_not_impose_activation_path generates shorter stories but do not ensure that activation paths exists between inhibitions arrows and eoi. *)
+  cf_activation_paths_compression : activation_paths_mode;
   (* Consider_only_precomputed_core generates shorter stories but invalid inhibition arrows when core predictions are wrong. *)
   fc_inhibitions_finding_mode : inhibitions_finding_mode;
+  fc_activation_paths_compression : activation_paths_mode;
   max_inhibitors_added_per_factual_events : int;
   max_inhibitors_added_per_cf_events : int;
   add_common_events_to_both_cores : bool; (* Generate longer stories, but permit to have a coherent and valid counterfactual experiment *)

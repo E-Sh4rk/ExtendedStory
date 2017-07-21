@@ -32,6 +32,18 @@ let n_first_integers n =
 
 (* ----- Kappa ----- *)
 
+module KappaConstr = struct
+  type t = constr
+  let compare = Pervasives.compare
+end
+module ConstrSet = Set.Make(KappaConstr)
+
+module InhibitionArrow = struct
+  type t = int * constr * int
+  let compare = Pervasives.compare
+end
+module InhSet = Set.Make(InhibitionArrow)
+
 module ASet = Set.Make(Agent)
 
 let srule_id_from_rule_id env rid = (Model.get_rule env rid).Primitives.syntactic_rule

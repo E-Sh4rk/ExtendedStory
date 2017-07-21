@@ -7,6 +7,7 @@ type cf_experiment = Global_trace.t * Global_trace.t * ((int * Grid.constr * int
 type extended_story = Global_trace.t * (cf_experiment list) (* (cumulated_factual_subtrace, counterfactual_experiments) *)
 
 type inhibitions_finding_mode = Consider_entire_trace | Prefer_predicted_core | Consider_only_predicted_core
+type activation_paths_mode = Do_not_minimize | Minimize | Do_not_impose_activation_path
 type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
@@ -17,13 +18,16 @@ type configuration =
   threshold    : float;
   max_counterfactual_exps : int;
   cf_inhibitions_finding_mode : inhibitions_finding_mode;
+  cf_activation_paths_compression : activation_paths_mode;
   fc_inhibitions_finding_mode : inhibitions_finding_mode;
+  fc_activation_paths_compression : activation_paths_mode;
   max_inhibitors_added_per_factual_events : int;
   max_inhibitors_added_per_cf_events : int;
   add_common_events_to_both_cores : bool;
   compute_inhibition_arrows_for_every_events : bool;
   adjust_inhibition_arrows_with_new_core_predictions : bool;
 }
+
 
 let compress trace eois compression_algorithm =
   if eois = [] then [] else
@@ -107,12 +111,12 @@ let rec last_activation_event_between trace among index1 index2 constr =
   else None (* It is an inhibition *)
 
 let activation_event_between trace mode core index1 index2 constr =
-  let core_act =
+  let prefered_act =
     if mode = Consider_entire_trace then None
     else last_activation_event_between trace core index1 index2 constr in
-  if core_act = None && mode <> Consider_only_predicted_core
+  if prefered_act = None && mode <> Consider_only_predicted_core
   then last_activation_event_between trace None index1 index2 constr
-  else core_act
+  else prefered_act
 
 type inhibition_reason =
   | Inhibition of (int * Grid.constr * int) * IntSet.t (* inhibition arrow, events involved *)
@@ -123,43 +127,83 @@ let is_valid_inhibitor trace1 trace2 i1 =
   else if search_global_id trace2 (get_global_id trace1 i1) = None then true
   else false
 
+(* Take a path of activations and minimize it.
+The set of events returned is a subset of the initial path that is also an activation path. *)
+let minimize_activation_path trace events core =
+  let core = match core with None -> IntSet.empty | Some c -> c in
+  let rec aux events =
+    let rec cut_after_first_that_has_relation lst c acc = match lst with
+    | [] -> assert false
+    | i::_ when not (ConstrSet.is_empty (ConstrSet.inter (ConstrSet.of_list (get_tests trace i)) c)) -> i::acc
+    | x::lst -> cut_after_first_that_has_relation lst c (x::acc)
+    in
+    let cut_until_first_in_core_that_has_relation lst c =
+      let rec aux2 l acc = match l with
+      | [] -> cut_after_first_that_has_relation lst c []
+      | i::_ when IntSet.mem i core &&
+      not (ConstrSet.is_empty (ConstrSet.inter (ConstrSet.of_list (get_tests trace i)) c)) -> i::acc
+      | x::l -> aux2 l (x::acc)
+      in aux2 lst []
+    in
+    if List.length events <= 1 then IntSet.of_list events
+    else
+    (
+      let src = List.hd events in
+      let src_actions = ConstrSet.diff (ConstrSet.of_list (get_actions trace src)) (ConstrSet.of_list (get_tests trace src)) in
+      let events = List.rev events in
+      let dest = List.hd events in
+      let dest_tests = ConstrSet.of_list (get_tests trace dest) in
+      if not (ConstrSet.is_empty (ConstrSet.inter src_actions dest_tests)) then IntSet.of_list [src ; dest]
+      else
+      (
+        let events = cut_until_first_in_core_that_has_relation events src_actions in
+        IntSet.add src (aux events)
+      )
+    )
+  in aux events
+
+let events_involved_in_activation trace events core act_mode = match act_mode with
+  | Do_not_impose_activation_path -> IntSet.of_list [List.hd events ; List.hd (List.rev events)]
+  | Minimize -> minimize_activation_path trace events core
+  | Do_not_minimize -> IntSet.of_list events
+
 (* Return the inhibitive arrows and the events involved for an event that happened only in trace1. *)
-let find_inhibitive_arrows trace1 trace2 mode core eoi1 =
+let find_inhibitive_arrows trace1 trace2 find_mode act_mode core eoi1 =
   let rec rewind involved (src,c,dest) =
     (*dbg (Format.asprintf "Inh? : %d (%d,%d) -> %d (%d,%d)" src (get_global_id trace2 src) (get_order trace2 src)
     dest (get_global_id trace1 dest) (get_order trace1 dest));*)
     let index1_eq = search_first_after_order trace1 (get_order trace2 src) in
     let index1_eq = match index1_eq with None -> length trace1 | Some i -> i in
     (* If destination is in the core, we can use the core to choose a more relevant reactivator. *)
-    let core = match core with
+    let act_core = match core with
     | None -> None
     | Some core -> if IntSet.mem dest core then Some core else None in
-    let act = activation_event_between trace1 mode core (index1_eq-1) dest c in
+    let act = activation_event_between trace1 find_mode act_core (index1_eq-1) dest c in
     (* For the Consider_only_core option, we must be sure that the src is a valid inhibitor. *)
     let act = if act = None && not (is_valid_inhibitor trace2 trace1 src)
-    then activation_event_between trace1 mode None (index1_eq-1) dest c else act in
+    then activation_event_between trace1 find_mode None (index1_eq-1) dest c else act in
     match act with
     | None ->
     (*dbg (Format.asprintf "Inh : %d (%d,%d) -> %d (%d,%d)" src (get_global_id trace2 src) (get_order trace2 src)
     dest (get_global_id trace1 dest) (get_order trace1 dest));*)
     assert ((get_global_id trace2 src < 0 && get_global_id trace1 dest >= 0)
          || (get_global_id trace2 src >= 0 && get_global_id trace1 dest < 0));
-    [Inhibition ((src,c,dest), involved)]
+    [Inhibition ((src,c,dest), events_involved_in_activation trace1 involved core act_mode)]
     | Some i ->
     (*dbg (Format.asprintf "Act : %d (%d,%d)" i (get_global_id trace1 i) (get_order trace1 i));*)
     aux involved i
   and aux involved dest =
-    let involved = IntSet.add dest involved in
+    let involved = dest::involved in
     let index2_eq = search_last_before_order trace2 (get_order trace1 dest) in
     let index2_eq = match index2_eq with None -> -1 | Some i -> i in
     let inh = List.map (fun c -> (last_inhibitive_event_before trace2 (index2_eq+1) c, c)) (get_tests trace1 dest) in
     let inh = List.filter (fun (opt,_) -> opt <> None) inh in
     let inh = List.map (function (Some src,c) -> (src,c,dest) | _ -> assert false) inh in
     match inh with
-    | [] -> [Blocked (dest, involved)]
-    | inh -> List.flatten (List.map (rewind involved) inh)
+    | [] -> [Blocked (dest,events_involved_in_activation trace1 involved core act_mode)]
+    | inh -> List.flatten (List.map (fun (src,c,dest) -> rewind involved (src,c,dest)) inh)
   in
-  if is_valid_inhibitor trace1 trace2 eoi1 then aux IntSet.empty eoi1 else []
+  if is_valid_inhibitor trace1 trace2 eoi1 then aux [] eoi1 else []
 
 let filter_cf_arrows arrows nb =
   let src = List.map (fun ((s,_,_),_) -> s) arrows in
@@ -196,7 +240,9 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       let predicted_f_core = if predicted_f_core = None && config.cf_inhibitions_finding_mode <> Consider_entire_trace
       then Some (IntSet.of_list (compress trace (IntSet.elements f_events) config.compression_algorithm))
       else predicted_f_core in
-      let reasons_f = List.map (fun e -> find_inhibitive_arrows trace cf_trace config.cf_inhibitions_finding_mode predicted_f_core e) (IntSet.elements f_events) in
+      let reasons_f = List.map
+      (fun e -> find_inhibitive_arrows trace cf_trace config.cf_inhibitions_finding_mode config.cf_activation_paths_compression predicted_f_core e)
+      (IntSet.elements f_events) in
 
       (* If there is no indirect reason, we search a direct reason. *)
       let no_indirect_reason = List.filter (fun rs -> not (List.exists (function Inhibition _ -> true | Blocked _ -> false) rs)) reasons_f in
@@ -218,7 +264,9 @@ let find_explanations trace cf_trace f_events cf_events predicted_f_core predict
       let predicted_cf_core = if predicted_cf_core = None && config.fc_inhibitions_finding_mode <> Consider_entire_trace
       then Some (IntSet.of_list (compress cf_trace (IntSet.elements cf_events) config.compression_algorithm))
       else predicted_cf_core in
-      let reasons_cf = List.map (fun e -> find_inhibitive_arrows cf_trace trace config.fc_inhibitions_finding_mode predicted_cf_core e) (IntSet.elements cf_events) in
+      let reasons_cf = List.map
+      (fun e -> find_inhibitive_arrows cf_trace trace config.fc_inhibitions_finding_mode config.fc_activation_paths_compression predicted_cf_core e)
+      (IntSet.elements cf_events) in
 
       let arrows_fc = List.map (fun lst -> List.map (function Inhibition (arrow,inv) -> (arrow,inv) | Blocked _ -> assert false)
         (List.filter (function Blocked _ -> false | Inhibition _ -> true) lst)) reasons_cf in
