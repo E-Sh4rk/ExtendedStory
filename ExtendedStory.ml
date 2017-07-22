@@ -130,7 +130,8 @@ let main () = Printexc.record_backtrace true ;
         eoi := get_first_eoi_after te !rule_of_interest (!eoi);
         let es = compute_extended_story te (!eoi) (!choosen_config) in
 
-        let oc = open_out (!output_prefix^"_"^(string_of_int (!eoi))^".dot") in
+        let ext = if !dot_format then ".dot" else ".json" in
+        let oc = open_out (!output_prefix^"_"^(string_of_int (!eoi))^ext) in
         let fmt = Format.formatter_of_out_channel oc in
         let dot_options = 
               if !verbose then Story_printer.def_options_detailed
@@ -139,7 +140,7 @@ let main () = Printexc.record_backtrace true ;
               if !verbose then Ext_story_json.def_options_detailed
               else Ext_story_json.def_options_simple in 
         if !dot_format then print_extended_story es Hiding_factual_events dot_options fmt
-        else Ext_story_json.print_json_of_extended_story es json_options oc ;
+        else Ext_story_json.print_json_of_extended_story es (!eoi) (!choosen_config).compression_algorithm json_options oc ;
         close_out oc
       done
     ) with Not_found -> logs "All events of interest processed !"

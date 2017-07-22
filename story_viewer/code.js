@@ -93,13 +93,13 @@ var cy = cytoscape({
 
   layout: defaults
 });	
-function id_exists_col(col,id)
+function node_exists_col(col,id)
 {
-	if (col.filter('#'+id).length > 0)
+	if (col.nodes().filter('#'+id).length > 0)
 		return true;
 	return false;
 }
-function id_exists_arr(elems,id)
+function node_exists_arr(elems,id)
 {
 	for (var i=0; i<elems.nodes.length; i++)
 	{
@@ -107,45 +107,63 @@ function id_exists_arr(elems,id)
 		if (node.id == id)
 			return true;
 	}
-	for (var i=0; i<elems.edges.length; i++)
-	{
-		var edge = elems.edges[i];
-		if (typeof(edge.id) == "undefined")
-			edge.id = edge.source+"_"+edge.target;
-		if (edge.id == id)
-			return true;
-	}
 	return false;
 }
 function load_elements(new_elements)
 {
 	var col = cy.elements();
-	// Deleting nodes & edges
-	for (var i=0; i<col.length; i++)
+	// Deleting edges & deleted nodes
+	col.edges().remove();
+	for (var i=0; i<col.nodes().length; i++)
 	{
-		var elem = col[i];
-		if (!id_exists_arr(new_elements,elem.id()))
+		var elem = col.nodes()[i];
+		if (!node_exists_arr(new_elements,elem.id()))
 			elem.remove();
 	}
-	// Adding nodes
+	// Adding new nodes
 	var to_add = {nodes:[], edges:[]};
 	for (var i=0; i<new_elements.nodes.length; i++)
 	{
 		var elem = new_elements.nodes[i];
-		if (!id_exists_col(col,elem.id))
+		if (!node_exists_col(col,elem.id))
 			to_add.nodes.push({data:{id:elem.id,label:elem.id}});
 	}
 	// Adding edges
+	var next_edge_id = 1;
+	var edge_classes = {};
 	for (var i=0; i<new_elements.edges.length; i++)
 	{
 		var elem = new_elements.edges[i];
-		if (typeof(elem.id) == "undefined")
-			elem.id = elem.source+"_"+elem.target;
-		if (!id_exists_col(col,elem.id))
-			to_add.edges.push({data:{id:elem.id, source:elem.source, target:elem.target, label:elem.id}});
+		var cy_elem = {data:{}};
+
+		var id = "__edge_"+next_edge_id
+		cy_elem.data.id = id;
+		next_edge_id++;
+
+		cy_elem.data.source = elem.source;
+		cy_elem.data.target = elem.target;
+
+		if (elem.label)
+			cy_elem.data.label = elem.label;
+		else
+			cy_elem.data.label = "";
+		
+		switch(elem.type) {
+			case "activation":
+				edge_classes[id] = "activation";
+				break;
+			case "inhibition":
+				edge_classes[id] = "inhibition";
+				break;
+			default: /* precedence */
+				edge_classes[id] = "";
+				break;
+		}
+
+		to_add.edges.push(cy_elem);
 	}
 	cy.add(to_add);
-	// Setting classes&properties
+	// Setting classes&properties for nodes
 	for (var i=0; i<new_elements.nodes.length; i++)
 	{
 		var elem = new_elements.nodes[i];
@@ -172,28 +190,14 @@ function load_elements(new_elements)
 				break;
 		}
 	}
-	for (var i=0; i<new_elements.edges.length; i++)
+	// Setting classes for edges
+	for (var i=0; i<cy.edges().length; i++)
 	{
-		var elem = new_elements.edges[i];
-		var cy_elem = cy.$("#"+elem.id);
-		
-		if (elem.label)
-			cy_elem.data("label", elem.label);
-		else
-			cy_elem.data("label", "");
-		
-		cy_elem.removeClass("activation inhibition");
-		switch(elem.type) {
-			case "activation":
-				cy_elem.addClass("activation");
-				break;
-			case "inhibition":
-				cy_elem.addClass("inhibition");
-				break;
-			default: /* precedence */
-				break;
-		}
+		var cy_elem = cy.edges()[i];		
+		//cy_elem.removeClass("activation inhibition");
+		cy_elem.addClass(edge_classes[cy_elem.id()]);
 	}
+	// Rendering !
 	cy.layout(defaults).run();
 }
 
@@ -230,7 +234,7 @@ function node_clicked(evt){
 	}
 }
 
-cy.on('click', 'node', node_clicked);
+cy.on('cxttap', 'node', node_clicked);
 
 // ---------------------------------------------------------------------------------------------------------
 
