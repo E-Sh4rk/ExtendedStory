@@ -36,7 +36,7 @@ var cy = cytoscape({
         'width': 'label',
 		'height': 'label',
 		'padding' : '5px',
-        'content': 'data(name)',
+        'content': 'data(label)',
         'text-valign': 'center',
         'text-outline-width': 0,
         'text-outline-color': '#eee',
@@ -65,10 +65,12 @@ var cy = cytoscape({
       })
     .selector('edge')
       .css({
+		'label': 'data(label)',
         'curve-style': 'bezier',
         'target-arrow-shape': 'none',
         'width': 2,
-        'line-color': '#ddd'
+        'line-color': '#ddd',
+		'font-size': '10%'
       })
 	.selector('.activation')
       .css({
@@ -131,7 +133,7 @@ function load_elements(new_elements)
 	{
 		var elem = new_elements.nodes[i];
 		if (!id_exists_col(col,elem.id))
-			to_add.nodes.push({data:{id:elem.id, name:elem.name}});
+			to_add.nodes.push({data:{id:elem.id,label:elem.id}});
 	}
 	// Adding edges
 	for (var i=0; i<new_elements.edges.length; i++)
@@ -140,7 +142,7 @@ function load_elements(new_elements)
 		if (typeof(elem.id) == "undefined")
 			elem.id = elem.source+"_"+elem.target;
 		if (!id_exists_col(col,elem.id))
-			to_add.edges.push({data:{id:elem.id, source:elem.source, target:elem.target}});
+			to_add.edges.push({data:{id:elem.id, source:elem.source, target:elem.target, label:elem.id}});
 	}
 	cy.add(to_add);
 	// Setting classes&properties
@@ -148,6 +150,10 @@ function load_elements(new_elements)
 	{
 		var elem = new_elements.nodes[i];
 		var cy_elem = cy.$("#"+elem.id);
+		
+		if (elem.label)
+			cy_elem.data("label", elem.label);
+		
 		cy_elem.removeClass("counterfactual factual blocked clickable");
 		switch(elem.type) {
 			case "factual":
@@ -170,6 +176,12 @@ function load_elements(new_elements)
 	{
 		var elem = new_elements.edges[i];
 		var cy_elem = cy.$("#"+elem.id);
+		
+		if (elem.label)
+			cy_elem.data("label", elem.label);
+		else
+			cy_elem.data("label", "");
+		
 		cy_elem.removeClass("activation inhibition");
 		switch(elem.type) {
 			case "activation":
