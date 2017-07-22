@@ -7,6 +7,7 @@ let max_stories = ref max_int
 let output_prefix = ref ""
 let rule_of_interest = ref ""
 let verbose = ref false
+let dot_format = ref false
 let config = ref "regular"
 
 let options = [
@@ -19,7 +20,9 @@ let options = [
   ("--max", Arg.Set_int max_stories,
    "maximal number of stories to generate");
   ("--verbose", Arg.Set verbose,
-   "print annotated dot files");
+   "more detailed output");
+  ("--dot", Arg.Set dot_format,
+   "use dot format instead of json");
 ]
 let description = ""
 
@@ -129,10 +132,14 @@ let main () = Printexc.record_backtrace true ;
 
         let oc = open_out (!output_prefix^"_"^(string_of_int (!eoi))^".dot") in
         let fmt = Format.formatter_of_out_channel oc in
-        let options = 
+        let dot_options = 
               if !verbose then Story_printer.def_options_detailed
               else Story_printer.def_options_simple in
-        print_extended_story es Hiding_factual_events options fmt ;
+        let json_options = 
+              if !verbose then Ext_story_json.def_options_detailed
+              else Ext_story_json.def_options_simple in 
+        if !dot_format then print_extended_story es Hiding_factual_events dot_options fmt
+        else Ext_story_json.print_json_of_extended_story es json_options oc ;
         close_out oc
       done
     ) with Not_found -> logs "All events of interest processed !"
