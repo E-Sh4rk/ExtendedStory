@@ -29,8 +29,11 @@ let next_core_event_that_test_an_agent_of trace core i agents =
   let core = List.sort_uniq Pervasives.compare core in
   aux core
 
-(* Block only events not in the factual causal core and that have an action on a logical site NOT TESTED by a core event
-   but on an agent TESTED by this core event, and only if it is the last event to modify this site before the core event. *)
+(* Block only events not in the factual causal core that have an action on a logical site such as :
+   - There is an event of the core after this event that test the same agent
+   - The first of these agents does not test the same logical site
+   - There is no other event between these two events that modify the logical site
+*)
 let heuristic_1 pers trace blacklist core eoi : interventions =
 
   let find_next_admissible_core_event i action =
