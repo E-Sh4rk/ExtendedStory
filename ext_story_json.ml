@@ -6,21 +6,24 @@ type json_exportation_options =
   {
     show_activations : bool ;
     show_edges_infos : bool ;
-    show_event_ids : bool
+    show_event_ids : bool ;
+    remove_duplicate_edges : bool
   }
 
 let def_options_detailed =
   {
     show_activations = true ;
     show_edges_infos = true ;
-    show_event_ids = true
+    show_event_ids = true ;
+    remove_duplicate_edges = true
   }
 
 let def_options_simple =
   {
     show_activations = false ;
     show_edges_infos = false ;
-    show_event_ids = false
+    show_event_ids = false ;
+    remove_duplicate_edges = true
   }
 
 let label_of_event trace options i =
@@ -54,10 +57,9 @@ let precedence_to_edge _ _ (src,dest) =
   let label = "" in
   `Assoc [("label", `String label) ; ("source", `String source) ; ("target", `String target) ; ("type", `String edge_type)]
 
-let activation_to_edge trace options (dest,c,src) =
+let causal_relation_to_edge trace options edge_type (src,c,dest) =
   let env = get_model trace in
   let source = string_of_int src and target = string_of_int dest in
-  let edge_type = "activation" in
   let label = if options.show_edges_infos then
   (
     let (Grid.Constr (x, _v)) = c in
@@ -65,6 +67,59 @@ let activation_to_edge trace options (dest,c,src) =
   )
   else "" in
   `Assoc [("label", `String label) ; ("source", `String source) ; ("target", `String target) ; ("type", `String edge_type)]
+
+let activation_to_edge trace options (dest,c,src) =
+  causal_relation_to_edge trace options "activation" (src,c,dest)
+
+let inhibition_to_edge trace _ options (src,c,dest) =
+  causal_relation_to_edge trace options "inhibition" (src,c,dest)
+
+let compute_and_export_edges trace options =
+  let precedence = Ext_story_printer.compute_precedence trace in
+  let edges = List.map (precedence_to_edge trace options) precedence in
+
+  if options.show_activations then
+  (
+    let activations = Ext_story_printer.compute_activation trace in
+    let activations = List.filter (fun (_,c,_) -> Story_printer.important_constr c) activations in
+    let edges_2 = List.map (activation_to_edge trace options) activations in
+    edges@edges_2
+  )
+  else edges
+
+let exp_event_to_node f_trace cf_trace options blocked factual i =
+  let (trace, opp_trace) = if factual then (f_trace, cf_trace) else (cf_trace, f_trace) in
+  let id = get_global_id trace i in
+  let label = label_of_event trace options i in
+
+  let common = search_global_id opp_trace id <> None in
+  if common && not factual then None else
+  (
+    let node_type = if common then "common"
+      else if IntSet.mem id blocked then "blocked"
+      else if factual then "factual" else "counterfactual" in
+    Some (`Assoc [("id", `String (string_of_int id)) ; ("label", `String label) ; ("type", `String node_type)])
+  )
+
+let experiment_to_json options (fact, cf, inh, blocked) =
+  (* Bindings *)
+  let bindings = `List (List.map (fun s -> `String (string_of_int s)) (IntSet.elements blocked)) in
+  (* Nodes *)
+  let nodes_1 = List.map (exp_event_to_node fact cf options blocked true) (n_first_integers (length fact)) in
+  let nodes_2 = List.map (exp_event_to_node fact cf options blocked false) (n_first_integers (length cf)) in
+  let nodes = nodes_1 @ nodes_2 in
+  let nodes = List.filter (function None -> false | _ -> true) nodes in
+  let nodes = List.map (function None -> assert false | Some n -> n) nodes in
+  let nodes = `List nodes in
+  (* Edges *)
+  let edges_1 = compute_and_export_edges fact options in
+  let edges_2 = compute_and_export_edges cf options in
+  let edges_3 = List.map (inhibition_to_edge fact cf options) (InhSet.elements inh) in
+  let edges = edges_1@edges_2@edges_3 in
+  let edges = if options.remove_duplicate_edges then List.sort_uniq Pervasives.compare edges else edges in
+  let edges = `List edges in
+
+  `Assoc [("bindings",bindings) ; ("nodes",nodes) ; ("edges",edges)]
 
 let print_json_of_extended_story (fact,exps) compression_algorithm options oc =
   (* Compute and export main graph *)
@@ -74,26 +129,17 @@ let print_json_of_extended_story (fact,exps) compression_algorithm options oc =
   let main_core = compression_algorithm (get_trace_explorer fact) (get_var_infos fact) (eoi_index::(IntSet.elements blocked_events_index)) in
   let main_subtrace = subtrace_of fact main_core in
 
-  let nodes_lst = List.map (main_event_to_node fact options blocked_events) main_core in
-  
-  let precedence = Ext_story_printer.compute_precedence main_subtrace in
-  let edges_lst = List.map (precedence_to_edge fact options) precedence in
-
-  let edges_lst = if options.show_activations then
-  (
-    let activations = Ext_story_printer.compute_activation main_subtrace in
-    let activations = List.filter (fun (_,c,_) -> Story_printer.important_constr c) activations in
-    let edges_lst_2 = List.map (activation_to_edge fact options) activations in
-    edges_lst@edges_lst_2
-  )
-  else edges_lst in
-
-  let nodes = `List nodes_lst and edges = `List edges_lst in
+  let nodes = List.map (main_event_to_node fact options blocked_events) main_core in
+  let nodes = `List nodes in
+  let edges = compute_and_export_edges main_subtrace options in
+  let edges = if options.remove_duplicate_edges then List.sort_uniq Pervasives.compare edges else edges in
+  let edges = `List edges in
   let main = `Assoc [("nodes", nodes) ; ("edges", edges)] in
 
-  (* TODO :  Compute and export experiments *)
+  (* Export experiments *)
+  let experiments = List.map (experiment_to_json options) exps in
+  let experiments = `List experiments in
 
-
-  let json = `Assoc [("main", main) ; ("experiments", `List [])] in
+  let json = `Assoc [("main", main) ; ("experiments", experiments)] in
   Yojson.Basic.pretty_to_channel oc json ; flush oc
 
