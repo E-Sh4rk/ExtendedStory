@@ -54,7 +54,7 @@ let precedence_to_edge _ _ (src,dest) =
   let label = "" in
   `Assoc [("label", `String label) ; ("source", `String source) ; ("target", `String target) ; ("type", `String edge_type)]
 
-let activation_to_edge trace options (src,c,dest) =
+let activation_to_edge trace options (dest,c,src) =
   let env = get_model trace in
   let source = string_of_int src and target = string_of_int dest in
   let edge_type = "activation" in
@@ -82,6 +82,7 @@ let print_json_of_extended_story (fact,exps) compression_algorithm options oc =
   let edges_lst = if options.show_activations then
   (
     let activations = Ext_story_printer.compute_activation main_subtrace in
+    let activations = List.filter (fun (_,c,_) -> Story_printer.important_constr c) activations in
     let edges_lst_2 = List.map (activation_to_edge fact options) activations in
     edges_lst@edges_lst_2
   )
