@@ -140,7 +140,7 @@ let main () = Printexc.record_backtrace true ;
               if !verbose then Ext_story_json.def_options_detailed
               else Ext_story_json.def_options_simple in 
         if !dot_format then print_extended_story es Hiding_factual_events dot_options fmt
-        else Ext_story_json.print_json_of_extended_story es (!eoi) (!choosen_config).compression_algorithm json_options oc ;
+        else Ext_story_json.print_json_of_extended_story es (!choosen_config).compression_algorithm json_options oc ;
         close_out oc
       done
     ) with Not_found -> logs "All events of interest processed !"
