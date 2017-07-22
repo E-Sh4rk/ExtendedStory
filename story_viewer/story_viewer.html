@@ -1,0 +1,27 @@
+<!DOCTYPE>
+<!-- This code is for demonstration purposes only.  You should not hotlink to Github, Rawgit, or files from the Cytoscape.js documentation in your production apps. -->
+<html>
+  <head>
+    <title>Extended Stories Viewer</title>
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1">
+    <link href="style.css" rel="stylesheet" />
+
+    <script src="jquery-3.2.1.min.js"></script>
+    <script src="cytoscape.min.js"></script>
+
+    <script src="dagre.js"></script>
+    <script src="cytoscape-dagre.js"></script>
+  </head>
+  <body>
+    <div id="cy"></div>
+    <script src="code.js"></script>
+	<form id="loadForm" enctype="multipart/form-data" method="post">
+	  <fieldset>
+		<h2>Load a story</h2>
+		 <input type='file' id='fileinput'>
+		 <input type='button' id='btnLoad' value='Load' onclick='loadFile();'>
+		 <input type='button' id='btnClear' value='Clear' onclick='clearGraph();'>
+	  </fieldset>
+	</form>
+  </body>
+</html>
