@@ -22,7 +22,7 @@ type configuration =
   fc_activation_paths_compression : activation_paths_mode;
   max_inhibitors_added_per_factual_events : int;
   max_inhibitors_added_per_cf_events : int;
-  add_common_events_to_both_cores : bool; (* Generate longer stories, but permit to have a coherent and valid counterfactual experiment *)
+  add_common_events_to_both_cores : bool;
   compute_inhibition_arrows_for_every_events : bool; (* Intensive & Generate longer stories ! *)
   adjust_inhibition_arrows_with_new_core_predictions : bool; (* Recommended if Consider_only_precomputed_core is used. *)
 }
