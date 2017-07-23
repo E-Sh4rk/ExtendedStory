@@ -142,7 +142,7 @@ let main () = Printexc.record_backtrace true ;
         let json_options = 
               if !verbose then Ext_story_json.def_options_detailed
               else Ext_story_json.def_options_simple in 
-        if !dot_format then print_extended_story es Hiding_factual_events dot_options fmt
+        if !dot_format then print_extended_story es Merging_factual_events dot_options fmt
         else Ext_story_json.print_json_of_extended_story es json_options oc ;
         close_out oc
       done
