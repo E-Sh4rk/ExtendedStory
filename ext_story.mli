@@ -1,14 +1,15 @@
 
 type cf_experiment = Global_trace.t * Global_trace.t * Ext_tools.InhSet.t * Ext_tools.IntSet.t
 (* (factual_subtrace, cf_subtrace, inhibition arrows, blocked events) *)
-type extended_story = Global_trace.t * (cf_experiment list) (* (cumulated_factual_subtrace, counterfactual_experiments) *)
+type extended_story = Global_trace.t * Global_trace.t * Global_trace.t * (cf_experiment list)
+(* (initial subtrace, extended subtrace, cumulative subtrace, experiments) *)
 
 type inhibitions_finding_mode = Consider_entire_trace | Prefer_predicted_core | Consider_only_predicted_core
 type activation_paths_mode = Do_not_minimize | Minimize | Do_not_impose_activation_path
 type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
-  give_cumulated_core_to_heuristic : bool; (* Give cumulated core to blocking heuristic instead of initial core. *)
+  give_cumulative_core_to_heuristic : bool; (* Give cumulative core to blocking heuristic instead of initial core. *)
   heuristic    : Global_trace.t -> Ext_tools.IntSet.t -> int list -> int -> Resimulator_interface.interventions;
   nb_samples   : int;
   trace_scoring_heuristic : Global_trace.t -> Global_trace.t -> int list -> int -> int ;
@@ -22,6 +23,7 @@ type configuration =
   fc_activation_paths_compression : activation_paths_mode;
   max_inhibitors_added_per_factual_events : int;
   max_inhibitors_added_per_cf_events : int;
+  include_initial_story_in_experiments : bool;
   add_common_events_to_both_cores : bool;
   compute_inhibition_arrows_for_every_events : bool; (* Intensive & Generate longer stories ! *)
   adjust_inhibition_arrows_with_new_core_predictions : bool; (* Recommended if Consider_only_precomputed_core is used. *)

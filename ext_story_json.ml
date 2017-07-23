@@ -121,17 +121,12 @@ let experiment_to_json options (fact, cf, inh, blocked) =
 
   `Assoc [("bindings",bindings) ; ("nodes",nodes) ; ("edges",edges)]
 
-let print_json_of_extended_story (fact,exps) compression_algorithm options oc =
-  (* Compute and export main graph *)
-  let eoi_index = (length fact)-1 in
-  let blocked_events = List.fold_left (fun acc (_,_,_,lst) -> IntSet.union acc lst) IntSet.empty exps in
-  let blocked_events_index = IntSet.map (fun id -> match search_global_id fact id with None -> assert false | Some i -> i) blocked_events in
-  let main_core = compression_algorithm (get_trace_explorer fact) (get_var_infos fact) (eoi_index::(IntSet.elements blocked_events_index)) in
-  let main_subtrace = subtrace_of fact main_core in
-
-  let nodes = List.map (main_event_to_node fact options blocked_events) main_core in
+let print_json_of_extended_story (_,fact,_,exps) options oc =
+  (* Export main graph *)
+  let blocked = List.fold_left (fun acc (_,_,_,lst) -> IntSet.union acc lst) IntSet.empty exps in
+  let nodes = List.map (main_event_to_node fact options blocked) (n_first_integers (length fact)) in
   let nodes = `List nodes in
-  let edges = compute_and_export_edges main_subtrace options in
+  let edges = compute_and_export_edges fact options in
   let edges = if options.remove_duplicate_edges then List.sort_uniq Pervasives.compare edges else edges in
   let edges = `List edges in
   let main = `Assoc [("nodes", nodes) ; ("edges", edges)] in

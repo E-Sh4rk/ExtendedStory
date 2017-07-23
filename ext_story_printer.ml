@@ -137,7 +137,7 @@ let print_counterfactual_part settings (_,tr,inh,_) part_nb fap =
         fap
     ) else fap
 
-let print_extended_story (fact,cps) mode options fmt =
+let print_extended_story (_,_,fact,cps) mode options fmt =
     let pr x = Format.fprintf fmt x in
 
     pr "@[<v 2>digraph G{@;" ;

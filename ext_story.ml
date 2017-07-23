@@ -3,15 +3,16 @@ open Ext_tools
 open Global_trace
 
 type cf_experiment = Global_trace.t * Global_trace.t * Ext_tools.InhSet.t * Ext_tools.IntSet.t
-(* (factual_subtrace, cf_subtrace, inhibition arrows, blocked events) *)
-type extended_story = Global_trace.t * (cf_experiment list) (* (cumulated_factual_subtrace, counterfactual_experiments) *)
+(* (factual subtrace, cf subtrace, inhibition arrows, blocked events) *)
+type extended_story = Global_trace.t * Global_trace.t * Global_trace.t * (cf_experiment list)
+(* (initial subtrace, extended subtrace, cumulative subtrace, experiments) *)
 
 type inhibitions_finding_mode = Consider_entire_trace | Prefer_predicted_core | Consider_only_predicted_core
 type activation_paths_mode = Do_not_minimize | Minimize | Do_not_impose_activation_path
 type configuration =
 {
   compression_algorithm : Trace_explorer.t -> Causal_core.var_info_table -> int list -> int list;
-  give_cumulated_core_to_heuristic : bool;
+  give_cumulative_core_to_heuristic : bool;
   heuristic    : Global_trace.t -> Ext_tools.IntSet.t -> int list -> int -> Resimulator_interface.interventions;
   nb_samples   : int;
   trace_scoring_heuristic : Global_trace.t -> Global_trace.t -> int list -> int -> int ;
@@ -23,6 +24,7 @@ type configuration =
   fc_activation_paths_compression : activation_paths_mode;
   max_inhibitors_added_per_factual_events : int;
   max_inhibitors_added_per_cf_events : int;
+  include_initial_story_in_experiments : bool;
   add_common_events_to_both_cores : bool;
   compute_inhibition_arrows_for_every_events : bool;
   adjust_inhibition_arrows_with_new_core_predictions : bool;
@@ -287,7 +289,7 @@ let compute_cores trace cf_trace f_events cf_events config =
     else aux f_events cf_events
   in aux f_events cf_events
 
-let compute_cf_experiment trace cf_trace eoi config =
+let compute_cf_experiment trace cf_trace initial_core eoi config =
   let rec aux f_events cf_events inhibition_arrows blocked explained_f explained_cf cumulative_f_events cumulative_cf_events =
     (* To prevent infinite loops *)
     let (f_events, cf_events) = if IntSet.subset f_events cumulative_f_events && IntSet.subset cf_events cumulative_cf_events
@@ -324,14 +326,15 @@ let compute_cf_experiment trace cf_trace eoi config =
     )
     else aux f_events cf_events inhibition_arrows blocked f_to_explains cf_to_explains cumulative_f_events cumulative_cf_events
   in
-  aux (IntSet.singleton eoi) IntSet.empty InhSet.empty IntSet.empty IntSet.empty IntSet.empty IntSet.empty IntSet.empty
+  let f_events = if config.include_initial_story_in_experiments then IntSet.of_list initial_core else IntSet.singleton eoi in
+  aux f_events IntSet.empty InhSet.empty IntSet.empty IntSet.empty IntSet.empty IntSet.empty IntSet.empty
 
 let add_cf_experiments trace eoi initial_core config =
-  let rec aux cf_exps cumulated_events blacklist =
+  let rec aux cf_exps cumulative_events blacklist =
     (* Choose intervention (heuristic) depending on the trace and the current factual causal core. *)
     logs "Determining interventions (heuristic)..." ;
-    let heur_core = if config.give_cumulated_core_to_heuristic
-    then compress trace (IntSet.elements cumulated_events) config.compression_algorithm
+    let heur_core = if config.give_cumulative_core_to_heuristic
+    then compress trace (IntSet.elements cumulative_events) config.compression_algorithm
     else initial_core in
     let interventions = config.heuristic trace blacklist heur_core eoi in
     (*dbg (Format.asprintf "%a" Resimulator_interface.print interventions) ;*)
@@ -347,9 +350,15 @@ let add_cf_experiments trace eoi initial_core config =
     if ratio >= config.threshold || nb_failed = 0 || List.length cf_exps >= config.max_counterfactual_exps
     then
     (
-      (* We compute the final cumulated factual core *)
-      let cumulated_core = compress trace (IntSet.elements cumulated_events) config.compression_algorithm in
-      (subtrace_of trace cumulated_core, cf_exps)
+      (* We compute the final cumulative factual core and the extended core *)
+      let cumulative_core = compress trace (IntSet.elements cumulative_events) config.compression_algorithm in
+      let cumulative_subtrace = subtrace_of trace cumulative_core in
+      let ext_events = if config.include_initial_story_in_experiments then IntSet.of_list initial_core else IntSet.singleton eoi in
+      let ext_events = IntSet.map (fun i -> get_global_id trace i) ext_events in
+      let ext_events = List.fold_left (fun acc (_,_,_,lst) -> IntSet.union acc lst) ext_events cf_exps in
+      let ext_events = IntSet.map (fun id -> match search_global_id cumulative_subtrace id with None -> assert false | Some i -> i) ext_events in
+      let extended_core = compress cumulative_subtrace (IntSet.elements ext_events) config.compression_algorithm in
+      (subtrace_of trace initial_core, subtrace_of cumulative_subtrace extended_core, cumulative_subtrace, cf_exps)
     )
     else
     (
@@ -358,18 +367,19 @@ let add_cf_experiments trace eoi initial_core config =
       logs ("Resimulation score : "^(string_of_int score)^". Computing the counterfactual part...") ;
 
       (* Compute the counterfactual experiment *)
-      let (cf_exp,blocked) = compute_cf_experiment trace cf_trace eoi config in
+      let (cf_exp,blocked) = compute_cf_experiment trace cf_trace initial_core eoi config in
       (* /!\ In the 2 following statements, we assimilate ID and index because it is coincide for the factual trace. *)
       let blacklist = IntSet.union blacklist blocked in
       let cumulated_events = match cf_exp with
-      | None -> cumulated_events
-      | Some (c,_,_,_) -> IntSet.union cumulated_events (IntSet.of_list (List.map (fun i -> get_global_id c i) (n_first_integers (length c)))) in
+      | None -> cumulative_events
+      | Some (c,_,_,_) -> IntSet.union cumulative_events (IntSet.of_list (List.map (fun i -> get_global_id c i) (n_first_integers (length c)))) in
       let cf_exps = match cf_exp with None -> cf_exps | Some cf_exp -> cf_exp::cf_exps in
 
       (*dbg (Format.asprintf "%a\n" (fun fmt set -> List.iter (fun i -> Format.fprintf fmt "%d ; " i) (IntSet.elements set)) blacklist) ;*)
       aux cf_exps cumulated_events blacklist
     )
-  in aux [] (IntSet.singleton eoi) (IntSet.empty)
+  
+  in aux [] (IntSet.of_list initial_core) (IntSet.empty)
 
 let compute_extended_story trace eoi config : extended_story =
   Global_trace.reset_ids ();

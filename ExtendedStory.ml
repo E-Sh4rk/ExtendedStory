@@ -29,7 +29,7 @@ let description = ""
 let regular_config =
 {
   compression_algorithm = kaflow_compression;
-  give_cumulated_core_to_heuristic = false;
+  give_cumulative_core_to_heuristic = false;
   heuristic    = Heuristics.heuristic_1 Heuristics.Persistence;
   nb_samples   = 25;
   trace_scoring_heuristic = Heuristics.scoring_1;
@@ -41,6 +41,7 @@ let regular_config =
   fc_activation_paths_compression = Minimize;
   max_inhibitors_added_per_factual_events = 3;
   max_inhibitors_added_per_cf_events = 1;
+  include_initial_story_in_experiments = true;
   add_common_events_to_both_cores = true;
   compute_inhibition_arrows_for_every_events = false;
   adjust_inhibition_arrows_with_new_core_predictions = true;
@@ -57,6 +58,7 @@ let faster_regular_config =
 let shortest_config =
 {
   regular_config with
+  include_initial_story_in_experiments = false;
   add_common_events_to_both_cores = false;
   compute_inhibition_arrows_for_every_events = false;
 }
@@ -72,6 +74,7 @@ let faster_shortest_config =
 let complete_config =
 {
   regular_config with
+  include_initial_story_in_experiments = true;
   add_common_events_to_both_cores = true;
   compute_inhibition_arrows_for_every_events = true;
 }
@@ -140,7 +143,7 @@ let main () = Printexc.record_backtrace true ;
               if !verbose then Ext_story_json.def_options_detailed
               else Ext_story_json.def_options_simple in 
         if !dot_format then print_extended_story es Hiding_factual_events dot_options fmt
-        else Ext_story_json.print_json_of_extended_story es ((!choosen_config).compression_algorithm) json_options oc ;
+        else Ext_story_json.print_json_of_extended_story es json_options oc ;
         close_out oc
       done
     ) with Not_found -> logs "All events of interest processed !"
