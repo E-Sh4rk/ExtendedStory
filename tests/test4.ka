@@ -1,0 +1,14 @@
+%agent: A(b,c)
+%agent: B(a)
+%agent: C(a)
+%agent: D(a1,a2)
+
+'A.B'  A(b), B(a) -> A(b!1), B(a!1)     @ 1
+'A.C'  A(c), C(a) -> A(c!1), C(a!1)     @ 1
+'A.D'  A(b,c), D(a1,a2) -> A(b!1,c!2), D(a1!1,a2!2)   @ 1
+
+%init: 1 A(), B()
+%init: 10 C(), D()
+%obs: 'AB' |A(b!1),B(a!1)|
+
+%mod: [true] do $TRACK 'AB' [true]
