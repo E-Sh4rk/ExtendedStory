@@ -3,9 +3,7 @@ open Ext_tools
 open Global_trace
 
 type cf_experiment = Global_trace.t * Global_trace.t * Ext_tools.InhSet.t * Ext_tools.IntSet.t
-(* (factual subtrace, cf subtrace, inhibition arrows, blocked events) *)
 type extended_story = Global_trace.t * Global_trace.t * Global_trace.t * (cf_experiment list)
-(* (initial subtrace, extended subtrace, cumulative subtrace, experiments) *)
 
 type inhibitions_finding_mode = Consider_entire_trace | Prefer_predicted_core | Consider_only_predicted_core
 type activation_paths_mode = Do_not_minimize | Minimize | Do_not_impose_activation_path
@@ -39,7 +37,6 @@ let compress trace eois compression_algorithm =
   )
 
 let cf_trace_succeed eoi trace cf_trace =
-
   match search_global_id cf_trace (get_global_id trace eoi) with
   | None ->
   (
