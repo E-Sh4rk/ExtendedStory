@@ -1,0 +1,77 @@
+{
+  "main": {
+    "nodes": [
+      { "id": "0", "label": "Intro A, B, C, D", "type": "factual" },
+      { "id": "2", "label": "Bp", "type": "clickable" },
+      { "id": "4", "label": "A.B", "type": "factual" },
+      { "id": "14", "label": "Dp", "type": "clickable" },
+      { "id": "17", "label": "A.D", "type": "factual" },
+      { "id": "27", "label": "A.C", "type": "factual" },
+      { "id": "28", "label": "ABCD", "type": "factual" }
+    ],
+    "edges": [
+      { "label": "", "source": "0", "target": "14", "type": "precedence" },
+      { "label": "", "source": "0", "target": "2", "type": "precedence" },
+      { "label": "", "source": "0", "target": "27", "type": "precedence" },
+      { "label": "", "source": "14", "target": "17", "type": "precedence" },
+      { "label": "", "source": "17", "target": "28", "type": "precedence" },
+      { "label": "", "source": "2", "target": "4", "type": "precedence" },
+      { "label": "", "source": "27", "target": "28", "type": "precedence" },
+      { "label": "", "source": "4", "target": "28", "type": "precedence" }
+    ]
+  },
+  "experiments": [
+    {
+      "bindings": [ "2", "14" ],
+      "nodes": [
+        { "id": "0", "label": "Intro A, B, C, D", "type": "common" },
+        { "id": "2", "label": "Bp", "type": "blocked" },
+        { "id": "4", "label": "A.B", "type": "common" },
+        { "id": "14", "label": "Dp", "type": "blocked" },
+        { "id": "17", "label": "A.D", "type": "common" },
+        { "id": "27", "label": "A.C", "type": "common" },
+        { "id": "28", "label": "ABCD", "type": "factual" },
+        { "id": "-47", "label": "A/Bu", "type": "counterfactual" },
+        { "id": "-50", "label": "A/Du", "type": "counterfactual" }
+      ],
+      "edges": [
+        {
+          "label": "",
+          "source": "-47",
+          "target": "28",
+          "type": "inhibition"
+        },
+        {
+          "label": "",
+          "source": "-50",
+          "target": "28",
+          "type": "inhibition"
+        },
+        { "label": "", "source": "0", "target": "14", "type": "precedence" },
+        { "label": "", "source": "0", "target": "17", "type": "precedence" },
+        { "label": "", "source": "0", "target": "2", "type": "precedence" },
+        { "label": "", "source": "0", "target": "27", "type": "precedence" },
+        { "label": "", "source": "0", "target": "4", "type": "precedence" },
+        {
+          "label": "",
+          "source": "14",
+          "target": "-50",
+          "type": "inhibition"
+        },
+        { "label": "", "source": "14", "target": "17", "type": "precedence" },
+        {
+          "label": "",
+          "source": "17",
+          "target": "-50",
+          "type": "precedence"
+        },
+        { "label": "", "source": "17", "target": "28", "type": "precedence" },
+        { "label": "", "source": "2", "target": "-47", "type": "inhibition" },
+        { "label": "", "source": "2", "target": "4", "type": "precedence" },
+        { "label": "", "source": "27", "target": "28", "type": "precedence" },
+        { "label": "", "source": "4", "target": "-47", "type": "precedence" },
+        { "label": "", "source": "4", "target": "28", "type": "precedence" }
+      ]
+    }
+  ]
+}

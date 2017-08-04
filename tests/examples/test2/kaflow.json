@@ -1,0 +1,17 @@
+{
+  "main": {
+    "nodes": [
+      { "id": "0", "label": "Intro A, B, C", "type": "factual" },
+      { "id": "2", "label": "A.B", "type": "factual" },
+      { "id": "3", "label": "A.C", "type": "factual" },
+      { "id": "4", "label": "BAC", "type": "factual" }
+    ],
+    "edges": [
+      { "label": "", "source": "0", "target": "2", "type": "precedence" },
+      { "label": "", "source": "0", "target": "3", "type": "precedence" },
+      { "label": "", "source": "2", "target": "4", "type": "precedence" },
+      { "label": "", "source": "3", "target": "4", "type": "precedence" }
+    ]
+  },
+  "experiments": []
+}

@@ -1,0 +1,20 @@
+{
+  "main": {
+    "nodes": [
+      { "id": "0", "label": "Intro A, B, C, D", "type": "factual" },
+      { "id": "4", "label": "A.C", "type": "factual" },
+      { "id": "5", "label": "A.D", "type": "factual" },
+      { "id": "6", "label": "A.B", "type": "factual" },
+      { "id": "7", "label": "ABCD", "type": "factual" }
+    ],
+    "edges": [
+      { "label": "", "source": "0", "target": "4", "type": "precedence" },
+      { "label": "", "source": "0", "target": "5", "type": "precedence" },
+      { "label": "", "source": "0", "target": "6", "type": "precedence" },
+      { "label": "", "source": "4", "target": "7", "type": "precedence" },
+      { "label": "", "source": "5", "target": "7", "type": "precedence" },
+      { "label": "", "source": "6", "target": "7", "type": "precedence" }
+    ]
+  },
+  "experiments": []
+}

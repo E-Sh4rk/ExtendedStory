@@ -1,0 +1,47 @@
+{
+  "main": {
+    "nodes": [
+      { "id": "0", "label": "Intro A, B, C", "type": "factual" },
+      { "id": "8", "label": "Cp", "type": "clickable" },
+      { "id": "9", "label": "A.C", "type": "factual" },
+      { "id": "17", "label": "A.B", "type": "factual" },
+      { "id": "18", "label": "BAC", "type": "factual" }
+    ],
+    "edges": [
+      { "label": "", "source": "0", "target": "17", "type": "precedence" },
+      { "label": "", "source": "0", "target": "8", "type": "precedence" },
+      { "label": "", "source": "17", "target": "18", "type": "precedence" },
+      { "label": "", "source": "8", "target": "9", "type": "precedence" },
+      { "label": "", "source": "9", "target": "18", "type": "precedence" }
+    ]
+  },
+  "experiments": [
+    {
+      "bindings": [ "8" ],
+      "nodes": [
+        { "id": "0", "label": "Intro A, B, C", "type": "common" },
+        { "id": "8", "label": "Cp", "type": "blocked" },
+        { "id": "9", "label": "A.C", "type": "common" },
+        { "id": "17", "label": "A.B", "type": "common" },
+        { "id": "18", "label": "BAC", "type": "factual" },
+        { "id": "-37", "label": "A/Cu", "type": "counterfactual" }
+      ],
+      "edges": [
+        {
+          "label": "",
+          "source": "-37",
+          "target": "18",
+          "type": "inhibition"
+        },
+        { "label": "", "source": "0", "target": "17", "type": "precedence" },
+        { "label": "", "source": "0", "target": "8", "type": "precedence" },
+        { "label": "", "source": "0", "target": "9", "type": "precedence" },
+        { "label": "", "source": "17", "target": "18", "type": "precedence" },
+        { "label": "", "source": "8", "target": "-37", "type": "inhibition" },
+        { "label": "", "source": "8", "target": "9", "type": "precedence" },
+        { "label": "", "source": "9", "target": "-37", "type": "precedence" },
+        { "label": "", "source": "9", "target": "18", "type": "precedence" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "main": {
+    "nodes": [
+      { "id": "0", "label": "Intro K, S", "type": "factual" },
+      { "id": "87", "label": "pK", "type": "clickable" },
+      { "id": "88", "label": "b", "type": "factual" },
+      { "id": "89", "label": "p", "type": "factual" },
+      { "id": "90", "label": "Sp", "type": "factual" }
+    ],
+    "edges": [
+      { "label": "", "source": "0", "target": "87", "type": "precedence" },
+      { "label": "", "source": "0", "target": "88", "type": "precedence" },
+      { "label": "", "source": "88", "target": "89", "type": "precedence" },
+      { "label": "", "source": "89", "target": "90", "type": "precedence" }
+    ]
+  },
+  "experiments": [
+    {
+      "bindings": [ "87" ],
+      "nodes": [
+        { "id": "0", "label": "Intro K, S", "type": "common" },
+        { "id": "87", "label": "pK", "type": "blocked" },
+        { "id": "88", "label": "b", "type": "common" },
+        { "id": "89", "label": "p", "type": "factual" },
+        { "id": "90", "label": "Sp", "type": "factual" },
+        { "id": "-1", "label": "u", "type": "counterfactual" }
+      ],
+      "edges": [
+        { "label": "", "source": "-1", "target": "89", "type": "inhibition" },
+        { "label": "", "source": "0", "target": "87", "type": "precedence" },
+        { "label": "", "source": "0", "target": "88", "type": "precedence" },
+        { "label": "", "source": "87", "target": "-1", "type": "inhibition" },
+        { "label": "", "source": "88", "target": "-1", "type": "precedence" },
+        { "label": "", "source": "88", "target": "89", "type": "precedence" },
+        { "label": "", "source": "89", "target": "90", "type": "precedence" }
+      ]
+    }
+  ]
+}

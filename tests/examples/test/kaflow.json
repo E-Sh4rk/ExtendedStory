@@ -1,0 +1,16 @@
+{
+  "main": {
+    "nodes": [
+      { "id": "0", "label": "Intro K, S", "type": "factual" },
+      { "id": "10", "label": "b", "type": "factual" },
+      { "id": "11", "label": "p", "type": "factual" },
+      { "id": "12", "label": "Sp", "type": "factual" }
+    ],
+    "edges": [
+      { "label": "", "source": "0", "target": "10", "type": "precedence" },
+      { "label": "", "source": "10", "target": "11", "type": "precedence" },
+      { "label": "", "source": "11", "target": "12", "type": "precedence" }
+    ]
+  },
+  "experiments": []
+}

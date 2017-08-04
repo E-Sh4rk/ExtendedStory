@@ -1,0 +1,14 @@
+{
+  "main": {
+    "nodes": [
+      { "id": "0", "label": "Intro A, B", "type": "factual" },
+      { "id": "12", "label": "A.B", "type": "factual" },
+      { "id": "13", "label": "AB", "type": "factual" }
+    ],
+    "edges": [
+      { "label": "", "source": "0", "target": "12", "type": "precedence" },
+      { "label": "", "source": "12", "target": "13", "type": "precedence" }
+    ]
+  },
+  "experiments": []
+}
