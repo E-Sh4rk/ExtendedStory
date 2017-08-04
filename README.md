@@ -28,3 +28,11 @@ make test MODEL=test2 OBS=BAC
 make test MODEL=test3 OBS=Aphos
 make test MODEL=test4 OBS=AB
 ```
+
+## How to render stories
+
+For the .json format (default) : load it with story_viewer/story_viewer.html.
+
+You can find some json examples in tests/examples.
+
+For the .dot format : use graphviz to render it.
