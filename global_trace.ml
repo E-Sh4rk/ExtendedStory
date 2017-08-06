@@ -95,6 +95,8 @@ let new_reference_trace te =
     next_f_id := !next_f_id + 1
   done ; gtr
 
+let copy ((te,vi),gi) = ((te,vi),Array.copy gi)
+
 let subtrace_of tr core =
   let core = List.sort_uniq Pervasives.compare core in
   let subtrace = List.map (get_step tr) core in
@@ -162,8 +164,6 @@ let get_history ((_,vi),_) var = Causal_core.get_modifications_history var vi
 
 (* Misc *)
 let reset_ids () = last_cf_id := 0 ; next_f_id := 0
-
-let copy ((te,vi),gi) = ((te,vi),Array.copy gi)
 
 (* Printing functions *)
 let print_core tr fmt core =
