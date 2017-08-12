@@ -30,7 +30,7 @@ let regular_config =
 {
   compression_algorithm = kaflow_compression;
   give_cumulative_core_to_heuristic = false;
-  heuristic    = Heuristics.heuristic_1 Heuristics.Persistence;
+  heuristic    = Heuristics.heuristic_1 Heuristics.Full_persistence;
   nb_samples   = 25;
   trace_scoring_heuristic = Heuristics.scoring_1;
   threshold    = 1.0;

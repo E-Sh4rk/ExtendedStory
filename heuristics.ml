@@ -31,7 +31,7 @@ let next_core_event_that_test_an_agent_of trace core i agents =
 
 (* Block only events not in the factual causal core that have an action on a logical site such as :
    - There is an event of the core after this event that test the same agent
-   - The first of these agents does not test the same logical site
+   - The first of these events does not test the same logical site
    - There is no other event between these two events that modify the logical site
 *)
 let heuristic_1 pers trace blacklist core eoi : interventions =
