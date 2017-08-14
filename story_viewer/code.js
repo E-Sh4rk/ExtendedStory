@@ -39,8 +39,8 @@ var cy = cytoscape({
         'content': 'data(label)',
         'text-valign': 'center',
         'text-outline-width': 0,
-        'text-outline-color': '#eee',
-        'background-color': '#eee',
+        'text-outline-color': '#ccc',
+        'background-color': '#ccc',
         'color': '#000'
       })
 	 .selector('.counterfactual')
@@ -65,20 +65,20 @@ var cy = cytoscape({
       })
     .selector('edge')
       .css({
-		'label': 'data(label)',
+	   'label': 'data(label)',
         'curve-style': 'bezier',
         'target-arrow-shape': 'none',
         'width': 2,
-        'line-color': '#ddd',
-		'font-size': '10%'
+        'line-color': '#aaa',
+	   'font-size': '10%'
       })
 	.selector('.activation')
       .css({
         'curve-style': 'bezier',
         'target-arrow-shape': 'triangle',
-        'width': 2,
-        'line-color': '#aaaaaa',
-        'target-arrow-color': '#aaaaaa'
+        'width': 1,
+        'line-color': '#666',
+        'target-arrow-color': '#666'
       })
     .selector('.inhibition')
       .css({
